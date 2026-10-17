@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f766e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="PetCare">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon.svg">
+<title>PetCare AI</title>
+<script type="importmap">{"imports":{"three":"/vendor/three.module.js","three/addons/controls/OrbitControls.js":"/vendor/OrbitControls.js"}}</script>
+<style>
+:root {
+  --bg: #f3f6f6; --surface: #ffffff; --surface-2: #eef3f3; --text: #14211f; --muted: #5d6d6b; --line: #dbe4e3;
+  --accent: #0f766e; --accent-soft: #d5efec; --ok: #15803d; --ok-soft: #dcf3e3; --warn: #b45309; --warn-soft: #fbecd5;
+  --on-accent: #ffffff; --bad: #b91c1c; --bad-soft: #fbe0e0; --off: #7b8786; --off-soft: #e7ecec; --shadow: 0 1px 2px rgba(0,0,0,.05), 0 4px 14px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b1719; --surface: #122427; --surface-2: #183034; --text: #e4efee; --muted: #93a9a7; --line: #23393c;
+    --accent: #2dd4bf; --accent-soft: #134440; --ok: #4ade80; --ok-soft: #133a24; --warn: #fbbf24; --warn-soft: #3d2f10;
+    --on-accent: #0b1719; --bad: #f87171; --bad-soft: #3f1a1a; --off: #8a9b99; --off-soft: #1d2f31; --shadow: none;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+body { font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+main { max-width: 560px; margin: 0 auto; padding: 12px 16px calc(84px + env(safe-area-inset-bottom)); }
+h1 { font-size: 22px; margin: 0; letter-spacing: -.01em; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 22px 4px 8px; font-weight: 600; }
+h3 { font-size: 16px; margin: 0 0 4px; }
+p { margin: 0; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; box-shadow: var(--shadow); }
+.card + .card { margin-top: 10px; }
+.row { display: flex; align-items: center; gap: 10px; }
+.between { justify-content: space-between; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.top { display: flex; align-items: center; justify-content: space-between; padding: 8px 4px 4px; }
+.pill { font-size: 12px; padding: 4px 10px; border-radius: 99px; background: var(--off-soft); color: var(--off); white-space: nowrap; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); } .pill.warn { background: var(--warn-soft); color: var(--warn); } .pill.bad { background: var(--bad-soft); color: var(--bad); }
+.hero { padding: 18px; }
+.hero .state { font-size: 24px; font-weight: 700; margin: 6px 0 2px; }
+.hero.ok { background: var(--ok-soft); border-color: transparent; } .hero.ok .state { color: var(--ok); }
+.hero.warn { background: var(--warn-soft); border-color: transparent; } .hero.warn .state { color: var(--warn); }
+.hero.off { background: var(--off-soft); border-color: transparent; } .hero.off .state { color: var(--off); }
+.hero ul { margin: 6px 0 0; padding-left: 18px; }
+.tile { padding: 14px; min-height: 112px; display: flex; flex-direction: column; gap: 4px; }
+.tile .label { font-size: 13px; color: var(--muted); display: flex; justify-content: space-between; }
+.tile .value { font-size: 20px; font-weight: 700; }
+.tile.active { border-color: var(--accent); background: var(--accent-soft); }
+.tile.offline .value { color: var(--off); }
+.tile.low .value { color: var(--warn); }
+.bar { height: 8px; border-radius: 99px; background: var(--surface-2); overflow: hidden; margin-top: auto; }
+.bar > span { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
+.bar.low > span { background: var(--warn); }
+.stat { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 0; border-top: 1px solid var(--line); }
+.stat:first-of-type { border-top: 0; padding-top: 4px; }
+.stat b { font-size: 18px; }
+.list .item { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.list .item:first-child { border-top: 0; padding-top: 2px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; margin-top: 6px; flex: none; background: var(--off); }
+.dot.WARNING { background: var(--warn); } .dot.CRITICAL { background: var(--bad); } .dot.read { opacity: .25; }
+.chart { display: flex; align-items: flex-end; gap: 6px; height: 120px; position: relative; margin: 12px 0 4px; }
+.chart .col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 4px; }
+.chart .col span { width: 100%; max-width: 34px; background: var(--accent); border-radius: 6px 6px 2px 2px; min-height: 2px; }
+.chart .col.today span { background: var(--accent); opacity: .55; }
+.chart .base { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--muted); opacity: .45; }
+.chart-labels { display: flex; gap: 6px; } .chart-labels div { flex: 1; text-align: center; font-size: 11px; color: var(--muted); }
+label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+input, select { width: 100%; font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; }
+input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--accent); }
+.check { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--line); font-size: 15px; color: var(--text); margin: 0; }
+.check:first-of-type { border-top: 0; }
+button { font: inherit; font-weight: 600; border: 0; border-radius: 10px; padding: 11px 16px; background: var(--accent); color: var(--on-accent); cursor: pointer; }
+button.ghost { background: var(--surface-2); color: var(--text); }
+button.danger { background: var(--bad-soft); color: var(--bad); }
+button.small { padding: 7px 12px; font-size: 13px; }
+button:disabled { opacity: .5; }
+.actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.code { font: 700 30px/1 ui-monospace, Menlo, Consolas, monospace; letter-spacing: .2em; text-align: center; padding: 14px; background: var(--surface-2); border-radius: 12px; margin-top: 12px; }
+.banner { background: var(--warn-soft); color: var(--warn); border-radius: 12px; padding: 12px 14px; margin: 8px 0; font-size: 14px; }
+.banner button { margin-top: 8px; }
+.toast { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); }
+.toast.show { opacity: 1; }
+nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--line); display: flex; justify-content: center; padding-bottom: env(safe-area-inset-bottom); z-index: 5; }
+nav .inner { display: flex; width: 100%; max-width: 560px; }
+nav button { flex: 1; background: none; color: var(--muted); border-radius: 0; padding: 8px 0 10px; font-size: 11px; font-weight: 500; display: flex; flex-direction: column; align-items: center; gap: 3px; position: relative; }
+nav button[aria-current="page"] { color: var(--accent); }
+nav svg { width: 24px; height: 24px; }
+.badge { position: absolute; top: 4px; left: calc(50% + 6px); background: var(--bad); color: #fff; font-size: 10px; font-weight: 700; border-radius: 99px; min-width: 17px; padding: 1px 5px; }
+.login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
+.login .card { width: 100%; max-width: 380px; }
+.hidden { display: none !important; }
+.twin-card { padding: 0; overflow: hidden; }
+.twin-canvas { height: min(58vh, 540px); background: #152333; touch-action: none; position: relative; }
+.twin-canvas canvas { display: block; width: 100%; height: 100%; }
+.twin-state { position: absolute; left: 10px; right: 10px; top: 10px; background: rgba(16,27,43,.85); color: #e4efee; border-radius: 10px; padding: 8px 12px; font-size: 13px; pointer-events: none; }
+.twin-tools { display: flex; gap: 8px; align-items: center; padding: 10px 12px; flex-wrap: wrap; }
+.twin-tools label { margin: 0 0 0 auto; display: flex; gap: 6px; align-items: center; color: var(--text); font-size: 13px; }
+.twin-tools input[type=checkbox] { width: 18px; height: 18px; }
+.error { color: var(--bad); font-size: 14px; margin-top: 10px; min-height: 1em; }
+</style>
+</head>
+<body>
+
+<section id="login" class="login hidden">
+  <form class="card" id="login-form">
+    <div class="row"><img src="/icon.svg" alt="" width="40" height="40"><h1>PetCare AI</h1></div>
+    <p class="muted small" style="margin-top:6px">Sign in to see how your pet is doing.</p>
+    <label for="lu">Username</label><input id="lu" autocomplete="username" required>
+    <label for="lp">Password</label><input id="lp" type="password" autocomplete="current-password" required>
+    <div class="actions"><button type="submit" style="width:100%">Sign in</button></div>
+    <p class="error" id="login-error"></p>
+  </form>
+</section>
+
+<div id="app" class="hidden">
+  <main>
+    <div class="top"><h1 id="title">PetCare AI</h1><span class="pill" id="link-pill">…</span></div>
+    <div id="password-banner" class="banner hidden">You're using the default password. Change it in Settings → Account to keep your pet's data private.</div>
+    <div id="view"></div>
+  </main>
+  <nav><div class="inner" id="nav"></div></nav>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ICONS = {
+  home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  twin: '<path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/>',
+  activity: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  alerts: '<path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4zM10 21h4"/>',
+  access: '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M15 8l2 2"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+};
+const TABS = [["home","Home"],["twin","3D"],["activity","Activity"],["alerts","Alerts"],["access","Access"],["settings","Settings"]];
+const GESTURES = {PASS_BY: "Walked past", APPROACH_STAY: "Waited at the door", AUTH_GESTURE: "Unlock gesture", ACCESS_GRANTED: "Access granted"};
+const PLACES = {eat: "food bowl", water: "water bowl", sleep: "bed", toilet: "litter box"};
+const CONDITIONS = {level: "A bowl is running low", zone_silent: "A sensor isn't responding", service_offline: "Sensors are offline"};
+let tab = "home", status = null, settings = null, accessKey = "";
+
+// ---------- helpers ----------
+async function api(path, body) {
+  const options = body === undefined ? {} : {method: "POST", headers: {"Content-Type": "application/json", "X-PetCare": "1"}, body: JSON.stringify(body)};
+  const response = await fetch(path, {credentials: "same-origin", ...options});
+  const data = await response.json().catch(() => ({}));
+  if (response.status === 401 && path !== "/api/login") { showLogin(); throw new Error("Please sign in"); }
+  if (!response.ok) throw new Error(data.error || "Something went wrong");
+  return data;
+}
+function toast(text) { const t = $("toast"); t.textContent = text; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2600); }
+function ago(iso) {
+  if (!iso) return "";
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+  return new Date(iso).toLocaleDateString(undefined, {day: "numeric", month: "short"});
+}
+function dur(seconds) {
+  seconds = Math.round(seconds || 0);
+  if (seconds < 60) return `${seconds} s`;
+  const h = Math.floor(seconds / 3600), m = Math.floor((seconds % 3600) / 60);
+  return h ? `${h} h ${m} min` : `${m} min`;
+}
+const hours = (h) => `${(h || 0).toFixed(1)} h`;
+const dayLabel = (iso) => new Date(iso + "T12:00").toLocaleDateString(undefined, {weekday: "short"}).slice(0, 2);
+async function guard(button, fn) { button.disabled = true; try { await fn(); } catch (e) { toast(e.message); } finally { button.disabled = false; } }
+
+// ---------- session ----------
+function showLogin() { $("app").classList.add("hidden"); $("login").classList.remove("hidden"); }
+function showApp() { $("login").classList.add("hidden"); $("app").classList.remove("hidden"); go(tab); refresh(); }
+$("login-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  $("login-error").textContent = "";
+  const button = event.submitter || event.target.querySelector("button");
+  button.disabled = true;
+  try { await api("/api/login", {username: $("lu").value, password: $("lp").value}); $("lp").value = ""; showApp(); }
+  catch (e) { $("login-error").textContent = e.message; }
+  finally { button.disabled = false; }
+});
+
+// ---------- navigation ----------
+$("nav").innerHTML = TABS.map(([id, name]) => `<button data-tab="${id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[id]}</svg>${name}${id === "alerts" ? '<span class="badge hidden" id="badge"></span>' : ""}</button>`).join("");
+$("nav").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) go(b.dataset.tab); });
+function go(name) {
+  if (tab === "twin" && twin) twin.unmount();  // stop drawing while the 3D tab is hidden
+  tab = name; accessKey = "";
+  document.querySelectorAll("nav button").forEach((b) => b.setAttribute("aria-current", b.dataset.tab === name ? "page" : "false"));
+  ({home: renderHome, twin: loadTwin, activity: loadActivity, alerts: loadAlerts, access: renderAccess, settings: loadSettings})[name]();
+  window.scrollTo(0, 0);
+}
+
+// ---------- polling ----------
+async function refresh() {
+  try { status = await api("/api/status"); } catch { return; }
+  $("title").textContent = status.pet.name;
+  const pill = $("link-pill");
+  const live = status.link.configured;
+  pill.textContent = live ? "● Live" : status.link.connected ? "Connecting…" : "Offline";
+  pill.className = "pill " + (live ? "ok" : status.link.connected ? "warn" : "");
+  $("password-banner").classList.toggle("hidden", !status.must_change_password);
+  const badge = $("badge");
+  badge.textContent = status.alerts.unread; badge.classList.toggle("hidden", !status.alerts.unread);
+  if (tab === "home") renderHome();
+  if (tab === "twin") updateTwin();
+  if (tab === "access") renderAccess();
+  if (tab === "settings" && $("mirror-state")) $("mirror-state").innerHTML = mirrorStates();
+  if (tab === "settings") document.querySelectorAll("[data-live]").forEach((el) => {
+    const z = status.zones.find((x) => x.sensor_id === el.dataset.live);
+    el.textContent = z && z.online ? `${z.distance_cm.toFixed(1)} cm` : "no reading";
+  });
+}
+setInterval(() => { if (!document.hidden && !$("app").classList.contains("hidden")) refresh(); }, 2000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden && !$("app").classList.contains("hidden")) refresh(); });
+
+// ---------- home ----------
+function overall(s) {
+  if (!s.link.connected) return ["off", "Sensors offline", ["The sensor script isn't connected to the hub. Monitoring is paused."]];
+  if (!s.link.configured) return ["off", "Connecting…", ["Waiting for the Raspberry Pi to confirm the sensor setup."]];
+  const issues = [...new Set(s.active_conditions.map((c) => CONDITIONS[c]).filter(Boolean))];
+  if (issues.length || s.alerts.critical) return ["warn", "Needs attention", issues.length ? issues : ["Check the Alerts tab."]];
+  return ["ok", "All normal", []];
+}
+function doing(s) {
+  const zone = (mode) => s.zones.find((z) => z.mode === mode && z.presence);
+  const bed = zone("sleep"), box = zone("toilet");
+  if (bed) return `Resting in bed · ${dur(bed.since_seconds)}`;
+  if (box) return "Using the litter box right now";
+  if (s.last_visit) return `Last seen at the ${PLACES[s.last_visit.mode]} ${ago(s.last_visit.timestamp)}`;
+  return "No visits recorded yet";
+}
+function tile(z) {
+  let value, note = "", cls = "", bar = "";
+  if (!z.online) { value = "No reading"; cls = "offline"; note = "Check sensor " + z.sensor_id; }
+  else if (z.mode === "eat" || z.mode === "water") {
+    if (z.level_percent === null) { value = "Set up"; note = "Calibrate in Settings"; }
+    else {
+      const low = z.level_percent < 30;
+      value = `${z.level_percent}%`; note = low ? "Refill soon" : "Level OK"; cls = low ? "low" : "";
+      bar = `<div class="bar ${low ? "low" : ""}"><span style="width:${z.level_percent}%"></span></div>`;
+    }
+  } else if (z.presence) { value = z.mode === "sleep" ? "Resting" : "In use"; note = dur(z.since_seconds); cls = "active"; }
+  else { value = "Empty"; note = "Nobody here"; }
+  return `<div class="card tile ${cls}"><div class="label"><span>${esc(z.name)}</span></div><div class="value">${esc(value)}</div><div class="muted small">${esc(note)}</div>${bar}</div>`;
+}
+function renderHome() {
+  const s = status;
+  if (!s) { $("view").innerHTML = '<p class="muted" style="padding:20px 4px">Loading…</p>'; return; }
+  const [tone, state, reasons] = overall(s);
+  const p = s.pet, t = s.today, y = s.yesterday, g = s.last_gesture;
+  const sleepPct = Math.min(100, (t.sleep_hours / p.baseline_sleep_hours) * 100);
+  const gestureLine = s.gesture.online ? (s.gesture.state === "RECORDING" ? "Reading a movement…" : s.gesture.state === "CLASSIFYING" ? "Checking the movement…" : "Watching the door") : "Entrance sensor offline";
+  $("view").innerHTML = `
+    <div class="card hero ${tone}">
+      <p class="small muted">${esc(p.animal || "Pet")} · ${esc(p.name)}</p>
+      <p class="state">${esc(state)}</p>
+      <p>${esc(tone === "off" ? reasons[0] : doing(s))}</p>
+      ${tone === "warn" ? `<ul>${reasons.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>` : ""}
+    </div>
+    ${s.access.window_open ? `<div class="banner">Someone made the unlock gesture at the entrance.<br><button class="small" onclick="go('access')">Open Access</button></div>` : ""}
+    <h2>Right now</h2>
+    <div class="grid">${s.zones.map(tile).join("")}</div>
+    <h2>Today</h2>
+    <div class="card">
+      <div class="stat"><span>Sleep</span><span><b>${hours(t.sleep_hours)}</b> <span class="muted small">/ usual ${hours(p.baseline_sleep_hours)}</span></span></div>
+      <div class="bar" style="margin:2px 0 6px"><span style="width:${sleepPct}%"></span></div>
+      <div class="stat"><span>Litter box visits</span><span><b>${t.toilet_visits}</b> <span class="muted small">/ usual ${p.baseline_toilet_visits}</span></span></div>
+      <div class="stat"><span>Yesterday's wellness</span><span>${y && y.score !== null ? `<b>${y.score}</b> <span class="muted small">${esc(y.status.toLowerCase())}</span>` : '<span class="muted small">Needs a full day of data</span>'}</span></div>
+    </div>
+    <h2>Entrance</h2>
+    <div class="card row between">
+      <div><h3>${esc(gestureLine)}</h3><p class="muted small">${g ? `Last: ${esc(GESTURES[g.prediction] || g.prediction)} · ${ago(g.timestamp)}` : "No movements yet"}</p></div>
+      <span class="pill ${s.gesture.online ? "ok" : ""}">${s.gesture.online ? "On" : "Off"}</span>
+    </div>
+    <p class="muted small" style="margin:14px 4px 0">Presence sensors estimate where your pet is; they can't confirm eating, drinking or sleep. Not a veterinary diagnosis.</p>`;
+}
+
+// ---------- 3D prototype ----------
+let twin = null;
+async function loadTwin() {
+  $("view").innerHTML = `
+    <h2>Prototype · live 3D</h2>
+    <div class="card twin-card">
+      <div class="twin-canvas" id="twin-canvas"><div class="twin-state" id="twin-state">Loading the 3D model…</div></div>
+      <div class="twin-tools">
+        <button class="ghost small" data-twin-view="perspective">Perspective</button>
+        <button class="ghost small" data-twin-view="top">Top view</button>
+        <label><input type="checkbox" id="twin-labels" checked> Labels</label>
+      </div>
+    </div>
+    <p class="muted small" style="margin:10px 4px">Drag to rotate · pinch or scroll to zoom · two fingers or right-drag to pan.
+      The pet appears where the sensors detect it (faded = last place seen). Sensor lights: green = pet detected, teal = OK, red = no reading.
+      Positions and sizes are approximate.</p>`;
+  try {
+    twin = twin || await import("/twin.js");
+    if (tab !== "twin") return;
+    twin.mount($("twin-canvas"));
+  } catch (e) {
+    $("twin-state").textContent = "The 3D view could not start on this device (" + e.message + ").";
+    return;
+  }
+  document.querySelectorAll("[data-twin-view]").forEach((b) => b.onclick = () => twin.view(b.dataset.twinView));
+  $("twin-labels").onchange = (e) => twin.setLabels(e.target.checked);
+  updateTwin();
+}
+function updateTwin() {
+  if (!twin || !status || !$("twin-state")) return;
+  const shown = twin.update(status);
+  const where = doing(status);
+  $("twin-state").textContent = !status.link.connected ? "Sensors offline · showing the last known state"
+    : shown === "live" ? where : shown === "last" ? where + " (faded)" : "Not at the bed or litter box right now";
+}
+
+// ---------- activity ----------
+function chart(days, key, baseline, fmt) {
+  const max = Math.max(baseline * 1.25, ...days.map((d) => d[key]), 0.1);
+  return `<div class="chart"><div class="base" style="bottom:${(baseline / max) * 100}%" title="usual"></div>${days.map((d, i) =>
+    `<div class="col ${i === days.length - 1 ? "today" : ""}" title="${esc(fmt(d[key]))}"><span style="height:${(d[key] / max) * 100}%"></span></div>`).join("")}</div>
+    <div class="chart-labels">${days.map((d) => `<div>${dayLabel(d.day)}</div>`).join("")}</div>`;
+}
+async function loadActivity() {
+  $("view").innerHTML = '<p class="muted" style="padding:20px 4px">Loading…</p>';
+  let a; try { a = await api("/api/activity?days=7"); } catch (e) { return; }
+  if (tab !== "activity") return;
+  $("view").innerHTML = `
+    <h2>Sleep · last 7 days</h2>
+    <div class="card">${chart(a.days, "sleep_hours", a.baseline.sleep_hours, hours)}<p class="muted small">Dashed line: usual ${hours(a.baseline.sleep_hours)}. Today is lighter because it isn't finished.</p></div>
+    <h2>Litter box visits · last 7 days</h2>
+    <div class="card">${chart(a.days, "toilet_visits", a.baseline.toilet_visits, (v) => `${v} visits`)}<p class="muted small">Dashed line: usual ${a.baseline.toilet_visits} a day.</p></div>
+    <h2>Recent visits</h2>
+    <div class="card list">${a.visits.length ? a.visits.map((v) => `<div class="item"><div style="flex:1"><b>${v.mode === "sleep" ? "Rested in bed" : "Used the litter box"}</b><p class="muted small">${dur(v.duration)}</p></div><span class="muted small">${ago(v.timestamp)}</span></div>`).join("") : '<p class="muted">No visits yet.</p>'}</div>
+    <h2>Entrance</h2>
+    <div class="card list">${a.gestures.length ? a.gestures.map((g) => `<div class="item"><div style="flex:1"><b>${esc(GESTURES[g.prediction] || g.prediction)}</b></div><span class="muted small">${ago(g.timestamp)}</span></div>`).join("") : '<p class="muted">No entrance activity yet.</p>'}</div>`;
+}
+
+// ---------- alerts ----------
+async function loadAlerts() {
+  let data; try { data = await api("/api/alerts"); } catch (e) { return; }
+  if (tab !== "alerts") return;
+  const list = data.alerts;
+  $("view").innerHTML = `
+    <div class="row between" style="margin:14px 4px 8px"><h2 style="margin:0">Alerts</h2>
+      <div class="row">${list.length ? '<button class="ghost small" id="read-all">Mark all read</button><button class="danger small" id="clear-all">Clear</button>' : ""}</div></div>
+    <div class="card list">${list.length ? list.map((a) => `<div class="item" data-id="${esc(a.id)}"><span class="dot ${esc(a.severity)} ${a.read ? "read" : ""}"></span><div style="flex:1">
+      <b>${esc(a.title)}</b><p class="small">${esc(a.message)}</p><p class="muted small">${ago(a.timestamp)} · Telegram: ${esc(a.telegram_status)}</p></div></div>`).join("")
+      : '<p class="muted">Nothing to worry about. Alerts appear here and on Telegram.</p>'}</div>`;
+  if (!list.length) return;
+  $("read-all").onclick = (e) => guard(e.target, async () => { await api("/api/alerts/read", {}); await refresh(); loadAlerts(); });
+  $("clear-all").onclick = (e) => { if (confirm("Delete all alerts?")) guard(e.target, async () => { await api("/api/alerts/clear", {}); await refresh(); loadAlerts(); }); };
+  document.querySelectorAll(".item[data-id]").forEach((el) => el.onclick = async () => { await api("/api/alerts/read", {id: el.dataset.id}).catch(() => {}); el.querySelector(".dot").classList.add("read"); refresh(); });
+}
+
+// ---------- access ----------
+function renderAccess() {
+  if (!status) return;
+  const a = status.access;
+  const key = JSON.stringify([a.window_open, a.awaiting_code, a.status, a.demo_code]);
+  if (key === accessKey) { const c = $("countdown"); if (c) c.textContent = a.seconds_left; return; }
+  accessKey = key;
+  let body;
+  if (a.awaiting_code) body = `
+      <label for="otp">Access code</label><input id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 digits">
+      ${a.demo_code ? `<div class="code">${esc(a.demo_code)}</div><p class="muted small" style="margin-top:6px">Demo code: Telegram isn't set up, so the code is shown here.</p>` : ""}
+      <div class="actions"><button id="verify">Verify code</button></div>`;
+  else if (a.window_open) body = `
+      <label for="who">Username</label><input id="who" autocomplete="username" placeholder="Your username">
+      <div class="actions"><button id="send">Send me a code</button></div>`;
+  else body = `<p class="muted small" style="margin-top:8px">Make the unlock gesture in front of the entrance sensor. You'll then have 2 minutes to request a code here.</p>`;
+  $("view").innerHTML = `
+    <h2>Door access</h2>
+    <div class="card">
+      <h3>${a.window_open ? `Unlock gesture detected · <span id="countdown">${a.seconds_left}</span> s left` : "Waiting for an unlock gesture"}</h3>
+      <p class="small">${esc(a.status)}</p>${body}
+    </div>
+    <p class="muted small" style="margin:12px 4px">Prototype: no physical lock is connected. A verified code is recorded in the entrance history.</p>`;
+  if ($("send")) $("send").onclick = (e) => guard(e.target, async () => { await api("/api/access/request", {username: $("who").value}); accessKey = ""; await refresh(); });
+  if ($("verify")) $("verify").onclick = (e) => guard(e.target, async () => { const r = await api("/api/access/verify", {code: $("otp").value}); toast(r.ok ? "Access granted" : "Code not accepted"); accessKey = ""; await refresh(); });
+}
+
+// ---------- settings ----------
+function mirrorStates() {
+  const states = status ? status.mirror.states : [];
+  const encryption = status ? `<p class="muted small">Encryption: ${esc(status.mirror.encryption)}</p>` : "";
+  if (!states.length) return '<p class="muted small">Off · no laptops saved.</p>' + encryption;
+  return encryption + states.map((m) => `<div class="item"><span class="pill ${m.live ? "ok" : ""}">${m.live ? "Live" : "Waiting"}</span><div style="flex:1"><b>${esc(m.host)}</b><p class="muted small">${esc(m.state)}</p></div></div>`).join("");
+}
+async function loadSettings() {
+  try { settings = await api("/api/settings"); } catch (e) { return; }
+  if (tab !== "settings") return;
+  const s = settings, p = s.pet, t = s.telegram, n = s.notifications;
+  const modeOptions = (current) => Object.entries(s.modes).map(([k, v]) => `<option value="${k}" ${k === current ? "selected" : ""}>${esc(v)}</option>`).join("");
+  const bowls = Object.entries(s.sensors.mapping).filter(([, m]) => m === "eat" || m === "water");
+  const NOTE = {entrance: "Someone waiting at the door", access: "Unlock gesture detected", levels: "Food or water running low", sensors: "Sensor problems", baseline: "Unusual daily routine"};
+  $("view").innerHTML = `
+    <h2>Pet</h2>
+    <form class="card" id="pet-form">
+      <div class="grid"><div><label for="pn">Name</label><input id="pn" value="${esc(p.name)}" required></div><div><label for="pa">Animal</label><input id="pa" value="${esc(p.animal)}"></div></div>
+      <div class="grid"><div><label for="ps">Usual sleep (h/day)</label><input id="ps" type="number" step="0.5" min="0.5" max="24" value="${p.baseline_sleep_hours}"></div>
+      <div><label for="pt">Usual litter visits/day</label><input id="pt" type="number" step="0.5" min="0.5" max="50" value="${p.baseline_toilet_visits}"></div></div>
+      <div class="actions"><button>Save pet</button></div>
+    </form>
+
+    <h2>Food & water calibration</h2>
+    <div class="card">${bowls.length ? bowls.map(([id, mode]) => { const c = s.calibration[id] || {}; return `
+      <form class="cal" data-id="${id}" style="margin-bottom:14px">
+        <div class="row between"><h3>${esc(s.modes[mode])} · sensor ${id}</h3><span class="muted small">now: <span data-live="${id}">…</span></span></div>
+        <div class="grid"><div><label>Distance when full (cm)</label><input name="full" type="number" step="0.1" value="${c.full_cm ?? ""}"></div>
+        <div><label>Distance when empty (cm)</label><input name="empty" type="number" step="0.1" value="${c.empty_cm ?? ""}"></div></div>
+        <div class="actions"><button type="button" class="ghost small" data-use="full">Use now as full</button><button type="button" class="ghost small" data-use="empty">Use now as empty</button><button class="small">Save</button></div>
+      </form>`; }).join("") : '<p class="muted">No sensor is assigned to food or water.</p>'}
+      <p class="muted small">Fill the bowl and tap "Use now as full", then empty it and tap "Use now as empty".</p></div>
+
+    <h2>Notifications</h2>
+    <div class="card">${Object.keys(n).map((k) => `<label class="check">${esc(NOTE[k] || k)}<input type="checkbox" data-note="${k}" ${n[k] ? "checked" : ""}></label>`).join("")}</div>
+
+    <h2>Telegram</h2>
+    <form class="card" id="tg-form">
+      <label class="check">Send Telegram messages<input type="checkbox" id="te" ${t.enabled ? "checked" : ""}></label>
+      <label for="tc">Chat ID</label><input id="tc" value="${esc(t.chat_id)}" inputmode="numeric">
+      <label for="tt">Bot token</label><input id="tt" type="password" autocomplete="off" placeholder="${t.has_token ? "Saved · leave blank to keep" : "Paste the token from @BotFather"}">
+      <div class="actions"><button>Save</button><button type="button" class="ghost" id="tg-test">Send test</button></div>
+    </form>
+
+    <h2>Sensors</h2>
+    <form class="card" id="sensor-form">
+      ${s.dashboard_source ? '<p class="muted small">Live readings arrive from the desktop GUI over SSH. Change sensor assignments in the desktop Sensor Hub.</p>' : ''}
+      <fieldset ${s.dashboard_source ? 'disabled' : ''} style="border:0;padding:0;margin:0;min-width:0">
+      ${Object.entries(s.sensors.mapping).map(([id, mode]) => `<div class="grid"><div><label>Sensor ${id}</label><select name="m${id}">${modeOptions(mode)}</select></div>
+        <div><label>Presence below (cm)</label><input name="t${id}" type="number" step="0.5" min="1" max="400" value="${s.sensors.thresholds[id]}"></div></div>`).join("")}
+      <p class="muted small" style="margin-top:10px">Sensor 5 is always the entrance gesture sensor. Setup revision ${s.sensors.revision} · ${status && status.link.configured ? "confirmed by the Pi" : "waiting for the Pi"}.</p>
+      <div class="actions"><button>Save sensors</button></div>
+      </fieldset>
+    </form>
+
+    <h2>Developer dashboard</h2>
+    <form class="card" id="mirror-form">
+      ${s.dashboard_source ? '<p class="muted small">The desktop GUI is already connected. Additional dashboard mirroring is disabled in this mode.</p>' : ''}
+      <fieldset ${s.dashboard_source ? 'disabled' : ''} style="border:0;padding:0;margin:0;min-width:0">
+      <p class="small">Also send live readings to the laptop dashboard. On the laptop: Sensor Hub → Live Pi → Start receiver.</p>
+      <label for="mh">Laptop IPs, separated by commas (blank = off)</label><input id="mh" value="${esc(s.mirror.hosts.join(", "))}" inputmode="decimal" placeholder="10.156.144.168, 10.192.104.4">
+      <label for="mp">Receiver port</label><input id="mp" type="number" min="1" max="65535" value="${s.mirror.port}">
+      <div class="list" id="mirror-state" style="margin-top:10px">${mirrorStates()}</div>
+      <div class="actions"><button>Save</button></div>
+      </fieldset>
+    </form>
+
+    <h2>Account</h2>
+    <form class="card" id="pw-form">
+      <label for="cp">Current password</label><input id="cp" type="password" autocomplete="current-password" required>
+      <label for="np">New password (8+ characters)</label><input id="np" type="password" autocomplete="new-password" minlength="8" required>
+      <div class="actions"><button>Change password</button><button type="button" class="ghost" id="logout">Sign out</button></div>
+    </form>
+    <p class="muted small" style="margin:14px 4px">Hub ${status ? (status.link.connected ? "connected to the sensor script" : "waiting for the sensor script") : ""}.</p>`;
+
+  $("pet-form").onsubmit = (e) => { e.preventDefault(); guard(e.submitter, async () => {
+    await api("/api/settings/pet", {name: $("pn").value, animal: $("pa").value, baseline_sleep_hours: +$("ps").value, baseline_toilet_visits: +$("pt").value});
+    toast("Pet saved"); refresh(); }); };
+  document.querySelectorAll("form.cal").forEach((f) => {
+    f.querySelectorAll("[data-use]").forEach((b) => b.onclick = () => {
+      const z = status && status.zones.find((x) => x.sensor_id === f.dataset.id);
+      if (!z || !z.online) return toast("No live reading from this sensor");
+      f.elements[b.dataset.use].value = z.distance_cm.toFixed(1);
+    });
+    f.onsubmit = (e) => { e.preventDefault(); guard(e.submitter, async () => {
+      await api("/api/settings/calibration", {sensor_id: f.dataset.id, full_cm: +f.elements.full.value, empty_cm: +f.elements.empty.value}); toast("Calibration saved"); }); };
+  });
+  document.querySelectorAll("[data-note]").forEach((c) => c.onchange = () => api("/api/settings/notifications", {[c.dataset.note]: c.checked}).then(() => toast("Saved")).catch((e) => toast(e.message)));
+  $("tg-form").onsubmit = (e) => { e.preventDefault(); guard(e.submitter, async () => {
+    await api("/api/settings/telegram", {enabled: $("te").checked, chat_id: $("tc").value, token: $("tt").value}); $("tt").value = ""; toast("Telegram saved"); loadSettings(); }); };
+  $("tg-test").onclick = (e) => guard(e.target, async () => { const r = await api("/api/settings/telegram/test", {}); toast(r.ok ? "Test message sent" : r.status); });
+  $("sensor-form").onsubmit = (e) => { e.preventDefault(); const f = e.target; guard(e.submitter, async () => {
+    const mapping = {}, thresholds = {};
+    for (const id of ["1", "2", "3", "4"]) { mapping[id] = f.elements["m" + id].value; thresholds[id] = +f.elements["t" + id].value; }
+    await api("/api/settings/sensors", {mapping, thresholds}); toast("Saved · the Pi will apply it in a moment"); loadSettings(); }); };
+  $("mirror-form").onsubmit = (e) => { e.preventDefault(); guard(e.submitter, async () => {
+    await api("/api/settings/mirror", {hosts: $("mh").value, port: +$("mp").value}); toast($("mh").value.trim() ? "Saved · connecting to the laptops" : "Dashboard copy turned off"); refresh(); }); };
+  $("pw-form").onsubmit =(e) => { e.preventDefault(); guard(e.submitter, async () => {
+    await api("/api/account/password", {current: $("cp").value, new: $("np").value}); $("cp").value = $("np").value = ""; toast("Password changed"); refresh(); }); };
+  $("logout").onclick = async () => { await api("/api/logout", {}).catch(() => {}); showLogin(); };
+  refresh();
+}
+
+// ---------- start ----------
+api("/api/session").then((r) => r.user ? showApp() : showLogin()).catch(showLogin);
+</script>
+</body>
+</html>

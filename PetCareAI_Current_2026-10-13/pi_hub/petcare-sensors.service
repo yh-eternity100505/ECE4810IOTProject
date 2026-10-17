@@ -1,0 +1,20 @@
+[Unit]
+Description=PetCare AI sensor script (unchanged predict_movement, sending to the local hub)
+After=petcare-hub.service
+Wants=petcare-hub.service
+
+[Service]
+User=jiating
+WorkingDirectory=/home/jiating/Desktop
+# Check both paths on your Pi: the env's python (run `which python` with the env active) and your script name.
+# The grep drops the script's per-message "[1 ORIGINAL]" / "[2 ENCRYPTED]" lines (about 20 a second);
+# status, config, ML and error lines still reach the journal.
+ExecStart=/bin/sh -c '/home/jiating/Desktop/env/bin/python -u /home/jiating/Desktop/predict_movement_test.py --gui-host 127.0.0.1 2>&1 | grep --line-buffered -v -F -e "[1 ORIGINAL]" -e "[2 ENCRYPTED]"'
+# Ctrl+C-style stop so the script runs its GPIO cleanup (lights and buzzer off).
+KillSignal=SIGINT
+# The pipeline's exit status is grep's, so restart whenever it ends unexpectedly.
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

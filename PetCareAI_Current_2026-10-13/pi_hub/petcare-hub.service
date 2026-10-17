@@ -1,0 +1,14 @@
+[Unit]
+Description=PetCare AI hub (phone app, history, alerts, Telegram)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=jiating
+WorkingDirectory=/home/jiating/Desktop/pi_hub
+ExecStart=/usr/bin/python3 /home/jiating/Desktop/pi_hub/pi_hub.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

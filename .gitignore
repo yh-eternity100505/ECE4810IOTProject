@@ -1,0 +1,61 @@
+# ---------------------------------------------------------------
+# Secrets and personal data: never commit
+# ---------------------------------------------------------------
+# Runtime data folders: SQLite history, phone-app accounts, Telegram token (hub_settings.json),
+# DPAPI-protected EDC keys (edc_keys.dpapi)
+**/data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.dpapi
+hub_settings.json
+# EDC / HMAC keys and any other environment files
+*.env
+.env*
+# SSH identities (the GUI launcher uses ~/.ssh/petcare_pi; keep any copies out)
+petcare_pi
+petcare_pi.pub
+*.pem
+*.key
+# Pi state written by the sensor script at runtime
+hub_configuration.json
+hub_configuration.tmp
+
+# ---------------------------------------------------------------
+# Logs
+# ---------------------------------------------------------------
+logs/
+*.log
+*.log.*
+
+# ---------------------------------------------------------------
+# Python environments and caches (machine-specific; rebuild from requirements*.txt)
+# ---------------------------------------------------------------
+.venv/
+.venv-*/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# ---------------------------------------------------------------
+# Archives and build/test output (the project zips are far over GitHub's 100 MB limit)
+# ---------------------------------------------------------------
+*.zip
+artifacts/
+node_modules/
+test-results/
+playwright-report/
+
+# ---------------------------------------------------------------
+# OS and editor files
+# ---------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
