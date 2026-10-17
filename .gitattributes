@@ -1,0 +1,15 @@
+# Keep LF line endings everywhere so Pi scripts and systemd units work after cloning on Windows.
+* text=auto eol=lf
+
+# Windows-only launcher
+*.vbs text eol=crlf
+
+# Binary files: never convert or diff as text
+*.pdf binary
+*.joblib binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary
