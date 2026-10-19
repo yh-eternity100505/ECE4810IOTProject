@@ -65,19 +65,59 @@ sudo systemctl start petcare-sensors                     # when finished
 1. Laptop (PowerShell):
    ```powershell
    cd "C:\Desktop\ECE4810 IoT\Project\PetCareAI_Current_2026-10-13\GUI"
-   .\.venv\Scripts\python.exe main.py
+   .\.venv-local\Scripts\python.exe main.py
    ```
-   Sign in → **Sensor Hub → Live Pi → Connect Pi / Gesture access → Start receiver**.
-2. Phone app → **Settings → Developer dashboard** → laptop IPs, comma separated → Save. Each laptop's line should turn **Live**.
-   Or on the Pi:
-   ```bash
-   python3 ~/Desktop/pi_hub/pi_hub.py --mirror "10.156.144.168,10.192.104.4"    # "" turns it off
-   sudo systemctl restart petcare-hub
-   ```
-3. Sensors 1-4 must be assigned the same in the dashboard and the phone app (else no zone data reaches the dashboard).
+   Sign in → **Sensor Hub → Live Pi**. The receiver starts on port 5005 by itself.
+2. Make sure this laptop's IP is in the hub's dashboard list (below). Its line should turn **Live**.
+3. The hub sends the pet details and sensor setup to the dashboard automatically (sync), so assignments always match.
 
-The list stays saved: next time just open the dashboard and start the receiver. Clear the list to stop.
-Hub log line to look for: `journalctl -u petcare-hub | grep mirror`.
+The list stays saved: next time just open the dashboard. Laptop IPs change when the Wi-Fi changes, so check `ipconfig`.
+
+### Dashboard IP list (which laptops the Pi sends to)
+
+**Easiest:** phone app → **Settings → Developer dashboard** → edit the comma-separated list → Save (applies at once, no restart).
+
+**On the Pi.** The hub keeps the list in memory, so stop it first, change the list, then start it again.
+
+```bash
+cd ~/Desktop/pi_hub
+SETTINGS=data/hub_settings.json
+
+# See the current list
+python3 -c "import json; print(json.load(open('$SETTINGS'))['mirror']['hosts'])"
+
+# See what the hub is doing with each laptop right now
+journalctl -u petcare-hub --no-pager | grep "Dashboard mirror" | tail -10
+```
+
+Add one IP (keeps the others; change `NEW_IP`):
+```bash
+sudo systemctl stop petcare-hub
+NEW_IP=10.156.150.22
+python3 pi_hub.py --mirror "$(python3 -c "import json; h=json.load(open('$SETTINGS'))['mirror']['hosts']; print(','.join(h + ['$NEW_IP']))")"
+sudo systemctl start petcare-hub
+```
+
+Remove one IP (keeps the others; change `OLD_IP`):
+```bash
+sudo systemctl stop petcare-hub
+OLD_IP=10.156.152.229
+python3 pi_hub.py --mirror "$(python3 -c "import json; h=json.load(open('$SETTINGS'))['mirror']['hosts']; print(','.join(x for x in h if x != '$OLD_IP'))")"
+sudo systemctl start petcare-hub
+```
+
+Replace the whole list, or turn sending off:
+```bash
+sudo systemctl stop petcare-hub
+python3 pi_hub.py --mirror "10.156.144.168,10.156.152.229"   # exactly these laptops (up to 5)
+python3 pi_hub.py --mirror ""                                 # nobody
+sudo systemctl start petcare-hub
+```
+
+Notes:
+- `--mirror` prints the saved list and exits; it does not start a second hub.
+- A different port for one laptop: `10.156.150.22:5006`. Tailscale addresses (`100.x.x.x`) work too and never change.
+- Each laptop must run its receiver on port 5005 and have the EDC keys (`main.py --setup-edc`), or it shows **Refused**.
 
 **Encryption (EDC + HMAC):** the hub encrypts the dashboard copy when `~/.config/petcare/edc.env` exists on the Pi.
 Each laptop needs the same keys once: `.\.venv-local\Scripts\python.exe main.py --setup-edc` (from `GUI`).
