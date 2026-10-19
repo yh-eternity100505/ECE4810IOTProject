@@ -22,6 +22,7 @@ from pet_monitoring.services.authentication_service import AuthenticationService
 from pet_monitoring.services.telegram_service import TelegramService
 from pet_monitoring.services.credential_service import CredentialService
 from pet_monitoring.ui.main_window import MainWindow
+from tests.auth_support import configure_auth, login, login_page, PASSWORD
 
 APP = QApplication.instance() or QApplication([])
 
@@ -58,7 +59,8 @@ class ApplicationTests(unittest.TestCase):
         self.db = DatabaseService(self.path)
         self.c = MonitoringController(self.db)
         # Existing monitoring tests operate after an authenticated session is created.
-        self.c.auth.authenticate("admin", "pet123")
+        configure_auth(self.c, self.tmp.name)
+        login(self.c.auth)
         self.c.tick()
         self.window = MainWindow(self.c)
         self.window.show()
@@ -75,9 +77,7 @@ class ApplicationTests(unittest.TestCase):
 
     def login(self):
         page = self.window.login_page
-        page.username.setText("admin")
-        page.password.setText("pet123")
-        page.login_button.click()
+        login_page(page)
         APP.processEvents()
         self.assertEqual(self.window.root.currentIndex(), 1)
 
@@ -87,7 +87,7 @@ class ApplicationTests(unittest.TestCase):
         page.password.setText("wrong")
         page.login_button.click()
         self.assertEqual(self.window.root.currentIndex(), 0)
-        self.assertIn("Invalid", page.status.text())
+        self.assertIn("failed", page.status.text())
         page.password.setText("hidden")
         page.show_button.click()
         self.assertEqual(page.password.echoMode(), QLineEdit.EchoMode.Normal)
@@ -347,10 +347,17 @@ class LogicAndServiceTests(unittest.TestCase):
         self.assertEqual(interpret(r), "No activity")
 
     def test_auth_unicode_and_wrong_credentials(self):
-        auth = AuthenticationService()
-        self.assertTrue(auth.authenticate("admin", "pet123"))
-        self.assertFalse(auth.authenticate("猫", "pet123"))
-        self.assertFalse(auth.authenticate("admin", "wrong"))
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as folder:
+            db = DatabaseService(Path(folder) / "auth.db")
+            try:
+                controller = SimpleNamespace(db=db, _auth_event=lambda kind: None)
+                auth = configure_auth(controller, folder)
+                self.assertFalse(auth.authenticate("\u732b", PASSWORD))
+                self.assertFalse(auth.authenticate("admin", "wrong"))
+                self.assertFalse(auth.is_authenticated)
+            finally:
+                db.close()
 
     def test_real_telegram_failure_handling_and_token_redaction(self):
         service = TelegramService("Real", "private-token", "123")

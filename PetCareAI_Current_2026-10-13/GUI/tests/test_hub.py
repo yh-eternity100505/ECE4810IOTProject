@@ -5,10 +5,12 @@ import socket
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from PySide6.QtWidgets import QApplication
 from PySide6.QtTest import QTest
 from pet_monitoring.controller import MonitoringController
+from tests.auth_support import configure_auth, login
 from pet_monitoring.hub_controller import HubController, DEFAULT_MAPPING
 from pet_monitoring.services.database_service import DatabaseService
 from pet_monitoring.services.movement_receiver import MovementReceiver, parse_message
@@ -26,7 +28,7 @@ def wait_for(predicate):
 
 class HubTests(unittest.TestCase):
     def test_food_water_calibration_percentage_volume_and_history(self):
-        self.c.auth.authenticate("admin", "pet123")
+        login(self.c.auth)
         values = {"1": {"full_cm": 2, "empty_cm": 10, "capacity_l": 1, "linear_volume": True},
                   "3": {"full_cm": 2, "empty_cm": 10, "capacity_l": 2, "linear_volume": False}}
         self.assertTrue(self.hub.save_level_calibration(values)[0])
@@ -88,9 +90,16 @@ class HubTests(unittest.TestCase):
         self.hub._reset_states()
 
     def setUp(self):
+        saved_keys = patch("pet_monitoring.services.movement_receiver.has_saved_keys", return_value=False)
+        saved_keys.start()
+        self.addCleanup(saved_keys.stop)
+        environment = patch.dict(os.environ, {"PETCARE_EDC": "0"})
+        environment.start()
+        self.addCleanup(environment.stop)
         self.tmp = tempfile.TemporaryDirectory()
         self.db = DatabaseService(Path(self.tmp.name) / "hub.db")
         self.c = MonitoringController(self.db)
+        configure_auth(self.c, self.tmp.name)
         self.receiver = MovementReceiver()
         self.hub = HubController(self.c, self.receiver)
 
@@ -107,7 +116,7 @@ class HubTests(unittest.TestCase):
         mapping = {"1": "water", "2": "eat", "3": "toilet", "4": "sleep"}
         thresholds = {key: 20 for key in mapping}
         self.assertFalse(self.hub.save_configuration(mapping, thresholds))
-        self.c.auth.authenticate("admin", "pet123")
+        login(self.c.auth)
         self.assertTrue(self.hub.save_configuration(mapping, thresholds))
         self.assertEqual(self.db.get("hub_configuration")["mapping"], mapping)
         self.assertEqual(json.loads(self.receiver._config)["gesture_sensor"], 5)
@@ -127,7 +136,7 @@ class HubTests(unittest.TestCase):
         self.assertEqual(len(self.hub.history()), 1)
 
     def test_mapping_preserves_historical_zone_and_stale_readings_expire(self):
-        self.c.auth.authenticate("admin", "pet123")
+        login(self.c.auth)
         self.hub.set_mode("Live Pi")
         self.hub.mapping["1"] = "sleep"
         self.hub.process({"type": "CONFIG_ACK", "revision": 1})
@@ -159,7 +168,7 @@ class HubTests(unittest.TestCase):
             self.assertEqual(config["mapping"], DEFAULT_MAPPING)
             client.sendall(b'{"type":"CONFIG_ACK","revision":1}\n')
             self.assertTrue(wait_for(lambda: self.hub.acknowledged == 1))
-            self.c.auth.authenticate("admin", "pet123")
+            login(self.c.auth)
             self.hub.save_configuration({**DEFAULT_MAPPING, "1": "water"}, self.hub.thresholds)
             config = json.loads(client.makefile("rb").readline())
             self.assertEqual(config["revision"], 2)

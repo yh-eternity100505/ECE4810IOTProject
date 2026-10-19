@@ -6,7 +6,7 @@ verifies and decrypts experimental EDC + HMAC packets on port 5005 without a bri
 
 The default dashboard is now **Sensor Hub**, with four configurable pet-zone inputs on one Raspberry Pi and a fixed fifth sensor for gesture KNN. Start with [HUB_INTEGRATION.md](HUB_INTEGRATION.md). The original fixed-zone pages remain labeled Legacy.
 
-Raspberry Pi movement predictions now connect through **Movement & Access**. See [MOVEMENT_INTEGRATION.md](MOVEMENT_INTEGRATION.md) for the TCP message contract, Pi sender example, and username/Telegram OTP workflow.
+Raspberry Pi movement predictions connect through **Movement & Access**. See [MOVEMENT_INTEGRATION.md](MOVEMENT_INTEGRATION.md) for the TCP message contract, Pi sender example, and connection diagnostics. Administrator login uses a password and Telegram OTP.
 
 A working PySide6 desktop application for the ECE4810 **AIoT Smart Pet Health and Behaviour Monitoring System**. It monitors five camera-free sensing zones, interprets station presence, compares daily routines with a pet's baseline, and records behavioural insights and alerts.
 
@@ -21,10 +21,11 @@ Python 3.10 or newer is required; verified here with Python 3.12.6 on Windows.
 From PowerShell:
 
 ```powershell
-cd C:\Y4S1\ECE4810\Project
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe main.py
+cd C:\Y4S1\ECE4810\ECE4810IOTProject\PetCareAI_Current_2026-10-13\GUI
+python -m venv .venv-local
+.\.venv-local\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv-local\Scripts\python.exe main.py --setup-admin
+.\.venv-local\Scripts\python.exe main.py
 ```
 
 The virtual environment and requirements are already installed in this workspace. To launch now, use:
@@ -32,7 +33,7 @@ The virtual environment and requirements are already installed in this workspace
 On Windows, you can also double-click **Launch PetCare AI.vbs** in the project folder to open the app without a terminal. You can create a desktop shortcut to that launcher. Keep the launcher in the project folder so it finds the bundled virtual environment; no login or security checks are bypassed.
 
 ```powershell
-.\.venv\Scripts\python.exe main.py
+.\.venv-local\Scripts\python.exe main.py
 ```
 
 On macOS/Linux:
@@ -40,19 +41,83 @@ On macOS/Linux:
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python main.py --setup-admin
 .venv/bin/python main.py
 ```
 
 No virtual environment activation is necessary. All application paths resolve relative to the project, so launching from another directory also works when you pass the absolute path to `main.py`.
 
-Demo login:
+## Administrator setup and login
 
-| Field | Value |
-|---|---|
-| Username | `admin` |
-| Password | `pet123` |
+The only administrator username is **admin**. There is no default password,
+public registration, second account, or demo login fallback.
 
-The password field is masked, can be temporarily revealed, and is cleared after authentication. Remember username stores only the username. `AuthenticationService` verifies salted PBKDF2 password hashes with constant-time comparisons, creates expiring sessions, and logs outcomes without passwords. The initial demo account is stored as a hash. To replace it with your own username and hidden-password input, run `.\.venv\Scripts\python.exe -m pet_monitoring.security.provision_account --username group5` while the app is closed. See [SECURITY.md](SECURITY.md) for details and deployment limits.
+Close the app and run this **once**, locally under your normal Windows account:
+
+```powershell
+.\.venv-local\Scripts\python.exe main.py --setup-admin
+```
+
+Choose and confirm a password of at least 8 characters. Enter your Telegram bot
+token and **private chat ID** (saved desktop alert details are filled in when
+available). Open the bot in Telegram and press **Start** first. Continue, click
+**Request OTP on Telegram**, enter the delivered six-digit code and verify it.
+Save the eight recovery codes in a private location and confirm possession before
+completing setup. No QR code or authenticator enrollment is required.
+
+Then launch normally:
+
+```powershell
+.\.venv-local\Scripts\python.exe main.py
+```
+
+The existing login card asks for your password first. Click **Request OTP on
+Telegram**, enter the code, then **Verify and sign in**. Codes expire in two
+minutes and resend requests have a 30-second cooldown. Failed delivery cannot
+sign you in; there is no mock code displayed in the app. **Use a recovery code
+instead** replaces the Telegram step, still requires your password, and consumes
+that recovery code permanently. A recovery code alone cannot reset a forgotten
+password or recover a missing OS vault.
+
+If you forgot your password, click **Forgot password?** on the login card:
+
+1. Enter an unused recovery code from the file saved during setup.
+2. Click **Request password reset OTP on Telegram**. The app uses your already
+   enrolled bot and private chat; you cannot change the destination here.
+3. Enter the delivered reset code and choose and confirm a new password of at
+   least 8 characters, then click **Reset password** within two minutes.
+4. Sign in normally with the new password and the normal login OTP.
+
+Resetting consumes that one recovery code and invalidates previous sessions and
+pending password logins, including other open GUI processes. It keeps the same
+`admin` account, Telegram enrollment and permanent setup lock. Requests have a
+30-second cooldown; failed recovery attempts share the existing lockout counter.
+You need **both** Telegram access and an unused recovery code. This flow cannot
+reset a legacy authenticator-only account, missing credentials, or a lost OS vault.
+
+The password is stored as an Argon2id hash. The dedicated login bot token and
+verified private chat ID, password hash, recovery hashes and login throttling
+state live in the native OS credential store, independent of mutable alert
+settings. Windows uses Credential Manager, macOS uses Keychain, and Linux
+requires Secret Service. Unavailable native storage blocks authentication;
+there is no file fallback. Telegram OTP delivery needs internet access.
+
+Administrators who already completed the earlier authenticator setup keep their
+existing password, authenticator and recovery codes; their account is never
+silently reset or re-enrolled. The Telegram flow applies to new, incomplete setup.
+
+Setup closes permanently on completion. Preserve `data/admin_setup.lock` and the
+original OS credential entry; missing, unreadable, or corrupted state blocks login
+and does not reopen setup. Interrupted credential commits also lock setup. Restore
+the original OS credentials and matching marker through trusted local recovery;
+there is deliberately no automatic reset or enrollment bypass. A different
+`--database` does not reset the administrator. Run the app under the same OS account.
+
+**Raspberry Pi movement access** continues to show receiver, sensor and movement
+information, but gestures and movement-panel codes cannot sign in to the administrator.
+Pi monitoring, EDC/HMAC, SSH startup and the phone-hub transport are retained.
+The standalone phone hub has its own existing authentication and is outside this
+desktop-login replacement. See [SECURITY.md](SECURITY.md) for the security model.
 
 ## Structure
 
@@ -64,7 +129,7 @@ pet_monitoring/
   models/records.py             SensorReading, BehaviourEvent, Alert, PetProfile, DailySummary
   models/secure_packet.py       Encrypted packet, security events, results, metrics
   security/edc_adapter.py        Demo cipher / pluggable EDC backend
-  security/provision_account.py Local account setup with hidden password prompts
+  security/provision_account.py Compatibility entry point for one-time admin enrollment
   logic/
     behaviour_interpreter.py    Validation, presence interpretation, location
     wellness_score.py           Configurable behavioural score
@@ -169,7 +234,7 @@ When the database cannot open, the application uses temporary in-memory storage 
 Use a separate database for another demonstration:
 
 ```powershell
-.\.venv\Scripts\python.exe main.py --database data\presentation.db
+.\.venv-local\Scripts\python.exe main.py --database data\presentation.db
 ```
 
 ## Connect ultrasonic hardware later
@@ -214,7 +279,7 @@ All sends and tests run in a background executor with finite HTTP timeouts. Miss
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 .\.venv\Scripts\python.exe -m compileall -q main.py pet_monitoring tests
-.\.venv\Scripts\python.exe main.py --smoke-test
+.\.venv-local\Scripts\python.exe main.py --smoke-test
 ```
 
 Tests run Qt offscreen and use temporary databases. They exercise login, sidebar navigation, logout, live timers, timed sensor patterns, all scenario buttons, confidence/history, all graph ranges, baseline/profile edits, alert filters/read/clear, restart persistence, theme/resizing, invalid sensors, unavailable ML, database failure, token handling, notification toggles, and responsiveness during a slow network operation. Real Telegram HTTP responses/failures are mocked; hardware and real trained-model accuracy require later integration testing.

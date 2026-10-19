@@ -5,6 +5,7 @@ import socket
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from PySide6.QtWidgets import QApplication
 from PySide6.QtTest import QTest
@@ -26,6 +27,12 @@ def wait_for(predicate):
 
 class MovementTests(unittest.TestCase):
     def setUp(self):
+        saved_keys = patch("pet_monitoring.services.movement_receiver.has_saved_keys", return_value=False)
+        saved_keys.start()
+        self.addCleanup(saved_keys.stop)
+        environment = patch.dict(os.environ, {"PETCARE_EDC": "0"})
+        environment.start()
+        self.addCleanup(environment.stop)
         self.tmp = tempfile.TemporaryDirectory()
         self.db = DatabaseService(Path(self.tmp.name) / "test.db")
         self.c = MonitoringController(self.db)
@@ -72,21 +79,18 @@ class MovementTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 parse_message(json.dumps({**packet, "distance_cm": value}))
 
-    def test_decisions_and_single_use_otp(self):
+    def test_decisions_cannot_create_an_administrator_session(self):
         self.send_result("PASS_BY")
-        self.assertFalse(self.c.auth.is_authenticated)
         self.assertEqual(len(self.m.history), 1)
         self.send_result("APPROACH_STAY")
         self.assertTrue(any(a.title == "Suspicious approach detected" for a in self.c.alerts))
         self.send_result()
-        self.assertFalse(self.c.auth.is_authenticated)
-        self.m.request_otp("admin")
-        code = self.m.demo_code
-        self.assertEqual(len(code), 6)
-        self.assertTrue(self.m.verify_otp(code))
-        self.assertTrue(self.c.auth.is_authenticated)
-        self.assertFalse(self.m.verify_otp(code))
-        self.assertNotIn(code, json.dumps(self.db.get("movement_history")))
+        for username in ("admin", "unknown", ""):
+            self.assertFalse(self.m.request_otp(username))
+            self.assertIsNone(self.m._challenge)
+            self.assertEqual(self.m.demo_code, "")
+            self.assertFalse(self.m.verify_otp("123456"))
+            self.assertFalse(self.c.auth.is_authenticated)
 
     def test_each_approach_sends_telegram_and_records_delivery(self):
         from unittest.mock import Mock
@@ -107,24 +111,6 @@ class MovementTests(unittest.TestCase):
         self.send_result("APPROACH_STAY")
         self.assertEqual(self.c.alerts[0].telegram_status, "Disabled · category")
         self.assertEqual(service.send_alert.call_count, 2)
-
-    def test_expiry_attempt_limit_and_username(self):
-        self.m.request_otp("admin")
-        self.assertIsNone(self.m._challenge)
-        self.send_result()
-        self.m.request_otp("unknown")
-        self.assertIsNone(self.m._challenge)
-        self.m.request_otp("admin")
-        self.m._challenge["expires"] = 0
-        self.assertFalse(self.m.verify_otp(self.m.demo_code))
-        self.send_result()
-        self.m._last_request = -60
-        self.m.request_otp("admin")
-        wrong = "000000" if self.m.demo_code != "000000" else "111111"
-        for _ in range(5):
-            self.assertFalse(self.m.verify_otp(wrong))
-        self.assertIsNone(self.m._challenge)
-        self.assertFalse(self.c.auth.is_authenticated)
 
     def test_real_delivery_failure_never_grants_access(self):
         from unittest.mock import Mock
@@ -152,28 +138,12 @@ class MovementTests(unittest.TestCase):
         with self.assertRaises(OSError):
             socket.create_connection(("127.0.0.1", port), timeout=.2)
 
-    def test_pending_delivery_and_cancelled_callback(self):
-        self.send_result()
-        self.m.request_otp("admin")
-        code = self.m.demo_code
-        self.m._challenge["ready"] = False
-        self.assertFalse(self.m.verify_otp(code))
-        generation = self.m._generation
-        self.m.cancel_authentication()
-        self.m._delivered(generation, True, "Sent")
-        self.assertIsNone(self.m._challenge)
-        self.assertFalse(self.m.verify_otp(code))
-        self.assertFalse(self.c.auth.is_authenticated)
-
-    def test_successful_real_otp_stays_hidden_until_verification(self):
+    def test_legacy_telegram_otp_does_not_send_or_grant_access(self):
         from unittest.mock import Mock
         service = Mock(mode="Real")
-        service.send_message.return_value = (True, "Sent")
         self.c._telegram_service = lambda: service
         self.send_result()
         self.m.request_otp("admin")
-        code = self.m._challenge["code"]
-        self.assertTrue(wait_for(lambda: self.m._challenge["ready"]))
-        self.assertEqual(self.m.demo_code, "")
+        service.send_message.assert_not_called()
+        self.assertFalse(self.m.verify_otp("123456"))
         self.assertFalse(self.c.auth.is_authenticated)
-        self.assertTrue(self.m.verify_otp(code))

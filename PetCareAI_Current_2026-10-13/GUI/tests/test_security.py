@@ -18,6 +18,7 @@ from pet_monitoring.services.authentication_service import AuthenticationService
 from pet_monitoring.services.database_service import DatabaseService
 from pet_monitoring.models import SensorReading
 from pet_monitoring.controller import MonitoringController
+from tests.auth_support import configure_auth, login_page, PASSWORD
 from pet_monitoring.ui.main_window import MainWindow
 
 APP = QApplication.instance() or QApplication([])
@@ -78,7 +79,7 @@ class SecurityServiceTests(unittest.TestCase):
 
     def test_metadata_is_authenticated(self):
         for key, value in [("packet_id", "modified_id"), ("source_id", "SENSOR_WATER"),
-                           ("timestamp", datetime.now(timezone.utc).isoformat()),
+                           ("timestamp", (datetime.now(timezone.utc) + timedelta(seconds=1)).isoformat()),
                            ("nonce", base64.b64encode(b"X" * 16).decode())]:
             with self.subTest(field=key):
                 packet = replace(self.packet(), **{key: value})
@@ -164,6 +165,7 @@ class SecurityIntegrationTests(unittest.TestCase):
         self.path = Path(self.tmp.name) / "app.db"
         self.db = DatabaseService(self.path)
         self.c = MonitoringController(self.db)
+        configure_auth(self.c, self.tmp.name)
         self.w = MainWindow(self.c)
         self.w.show()
         APP.processEvents()
@@ -178,9 +180,7 @@ class SecurityIntegrationTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def login(self):
-        self.w.login_page.username.setText("admin")
-        self.w.login_page.password.setText("pet123")
-        self.w.login_page.login_button.click()
+        login_page(self.w.login_page)
         APP.processEvents()
         self.assertEqual(self.w.root.currentIndex(), 1)
         self.assertTrue(self.c.auth.is_authenticated)
@@ -203,6 +203,19 @@ class SecurityIntegrationTests(unittest.TestCase):
         self.assertFalse(self.c.timer.isActive())
         self.assertIn("Session expired", self.w.login_page.status.text())
         self.assertTrue(any(e.event_type == "SESSION_EXPIRED" for e in self.db.security_events()))
+
+    def test_movement_panel_and_signal_cannot_bypass_admin_mfa(self):
+        self.w.login_page.movement_requested.emit()
+        self.w.movement.process({"type": "MOVEMENT_RESULT", "prediction": "AUTH_GESTURE", "confidence": .99})
+        self.assertFalse(self.w.movement.request_otp("admin"))
+        self.assertFalse(self.w.movement.verify_otp("123456"))
+        self.w.movement.authenticated.emit()
+        self.assertEqual(self.w.root.currentIndex(), 0)
+        self.assertFalse(self.c.auth.is_authenticated)
+        self.assertTrue(self.c.auth.authenticate("admin", PASSWORD))
+        self.w.movement.authenticated.emit()
+        self.assertEqual(self.w.root.currentIndex(), 0)
+        self.assertFalse(self.c.auth.is_authenticated)
 
     def test_normal_and_tampered_demo_buttons_execute_real_path(self):
         self.login()
@@ -262,13 +275,13 @@ class SecurityIntegrationTests(unittest.TestCase):
         self.assertTrue(wait_for(lambda: any(a.telegram_sent for a in self.c.alerts if a.category == "security")))
         contents = " ".join(row[0] for row in self.db.execute("SELECT payload FROM security_events").fetchall())
         config = " ".join(row[0] for row in self.db.execute("SELECT value FROM config").fetchall())
-        for secret in ("pet123", self.c.security._authentication_key.hex(), self.c.security.backend._key.hex(), self.c.auth.session.identifier):
+        for secret in (PASSWORD, self.c.security._authentication_key.hex(), self.c.security.backend._key.hex(), self.c.auth.session.identifier):
             self.assertNotIn(secret, contents + config)
         reopened = DatabaseService(self.path)
         try:
             self.assertTrue(any(e.event_type == "PACKET_REJECTED_HMAC_FAILURE" for e in reopened.security_events()))
             self.assertTrue(any(a.category == "security" for a in reopened.alerts()))
-            self.assertIn("hash", reopened.get("authentication_users")["admin"])
+            self.assertIsNone(reopened.get("authentication_users"))
         finally:
             reopened.close()
 
@@ -302,42 +315,6 @@ class SecurityIntegrationTests(unittest.TestCase):
         heartbeat.stop()
         self.assertGreater(len(beats), 15)
         self.assertGreater(self.c.security.metrics.accepted_packets, 10)
-
-
-class AccountTests(unittest.TestCase):
-    def test_local_provisioning_command_hides_password_and_persists_only_hash(self):
-        import io
-        from pet_monitoring.security import provision_account
-        with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder) / "accounts.db"
-            output = io.StringIO()
-            with patch("sys.argv", ["provision_account", "--database", str(path), "--username", "group5"]), \
-                 patch("getpass.getpass", side_effect=["new-test-password", "new-test-password"]), \
-                 patch("sys.stdout", output):
-                self.assertEqual(provision_account.main(), 0)
-            self.assertNotIn("new-test-password", output.getvalue())
-            db = DatabaseService(path)
-            try:
-                self.assertTrue(AuthenticationService(db).authenticate("group5", "new-test-password"))
-                self.assertNotIn("new-test-password", json.dumps(db.get("authentication_users")))
-            finally:
-                db.close()
-
-    def test_hash_provisioning_session_expiry_and_lockout(self):
-        with tempfile.TemporaryDirectory() as folder:
-            db = DatabaseService(Path(folder) / "accounts.db")
-            auth = AuthenticationService(db)
-            auth.set_credentials("group5", "new-test-password")
-            self.assertNotIn("new-test-password", json.dumps(db.get("authentication_users")))
-            second = AuthenticationService(db)
-            self.assertTrue(second.authenticate("group5", "new-test-password"))
-            self.assertTrue(second.is_authenticated)
-            second.session.expires_at = time.monotonic() - 1
-            self.assertFalse(second.is_authenticated)
-            for _ in range(5):
-                self.assertFalse(second.authenticate("group5", "wrong"))
-            self.assertFalse(second.authenticate("group5", "new-test-password"))
-            db.close()
 
 
 if __name__ == "__main__":
