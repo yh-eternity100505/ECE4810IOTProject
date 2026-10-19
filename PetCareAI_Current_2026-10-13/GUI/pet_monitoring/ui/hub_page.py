@@ -27,7 +27,10 @@ class HubPage(Page):
         assignments = Card("Sensor assignments")
         assignments.box.addWidget(label("Food/water sensors face down at the contents: farther means less remaining. Sleep/toilet sensors detect zone presence. Reposition and recalibrate hardware when changing its function.", "muted", True))
         grid = QGridLayout()
-        for column, title in enumerate(["Hardware input", "Function", "Sleep / toilet threshold"]):
+        self.sync_note = label("", "muted", True)
+        assignments.box.addWidget(self.sync_note)
+        self.locations = {}
+        for column, title in enumerate(["Hardware input", "Function", "Sleep / toilet threshold", "Location (from Pi hub)"]):
             grid.addWidget(label(title, "eyebrow"), 0, column)
         for row, sensor_id in enumerate(hub.mapping, 1):
             grid.addWidget(label(f"Sensor {sensor_id}"), row, 0)
@@ -45,6 +48,9 @@ class HubPage(Page):
         grid.addWidget(label("Sensor 5"), 5, 0)
         grid.addWidget(label("Gesture KNN · fixed", "sectionTitle"), 5, 1)
         grid.addWidget(label("Trigger <20 cm · 60 samples / 6 seconds", "muted", True), 5, 2)
+        for sensor_id in ("1", "2", "3", "4", "5"):
+            self.locations[sensor_id] = label("—", "muted", True)
+            grid.addWidget(self.locations[sensor_id], int(sensor_id), 3)
         assignments.box.addLayout(grid)
         row = QHBoxLayout()
         self.feedback = label("", "muted", True)
@@ -52,7 +58,8 @@ class HubPage(Page):
         row.addWidget(button("Save assignments & send to Pi", self.save, True))
         assignments.box.addLayout(row)
         self.box.addWidget(assignments)
-        self.box.addWidget(LevelCalibration(hub))
+        self.calibration = LevelCalibration(hub)
+        self.box.addWidget(self.calibration)
         self.metrics = {}
         row = QHBoxLayout()
         for mode, title in MODES.items():
@@ -88,6 +95,27 @@ class HubPage(Page):
         self.box.addWidget(history)
         hub.changed.connect(self.refresh)
         self.refresh()
+
+    def sync_from_hub(self, state):
+        """Show the hub's sensor setup: roles, thresholds, calibration and physical locations."""
+        if not state:
+            self.sync_note.setText("Not synced with the Pi hub yet. When connected, the hub's sensor setup replaces local changes.")
+            return
+        facing = {0: "faces back", 45: "faces back-right", 90: "faces right", 135: "faces front-right", 180: "faces front",
+                  -180: "faces front", -135: "faces front-left", -90: "faces left", -45: "faces back-left"}
+        for sensor_id, place in state["locations"].items():
+            direction = facing.get(int(round(place["facing"] / 45) * 45), f"faces {place['facing']}°")
+            pins = state["pins"][sensor_id]
+            self.locations[sensor_id].setText(f"{place['note'] or 'No note'}\n{place['mount']} · x {place['x']:g}, z {place['z']:g} · {direction} · TRIG {pins[0]} / ECHO {pins[1]}")
+        for sensor_id, combo in self.combos.items():
+            combo.blockSignals(True)
+            combo.setCurrentIndex(combo.findData(self.hub.mapping[sensor_id]))
+            combo.blockSignals(False)
+            self.thresholds[sensor_id].setValue(self.hub.thresholds[sensor_id])
+            self.thresholds[sensor_id].setEnabled(self.hub.mapping[sensor_id] not in {"eat", "water"})
+        self.calibration.reload()
+        self.sync_note.setText(f"Synced from the Pi hub at {state['time']}. Change sensors, calibration and locations in the phone app; "
+                               "the hub's setup replaces local edits while connected.")
 
     def save(self):
         self.hub.save_configuration({key: combo.currentData() for key, combo in self.combos.items()},

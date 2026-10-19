@@ -142,6 +142,25 @@ The phone app's Settings → Developer dashboard shows the encryption state and 
 
 EDC is an educational cipher; the HMAC is what stops forged or altered packets.
 
+### Desktop dashboard sync (hub → desktop)
+
+The hub is the master copy of the pet and the hardware setup. Every connected desktop dashboard receives a
+`HUB_SYNC` message (EDC + HMAC encrypted like the rest) when it connects and whenever any of these change:
+the monitored pet's name, animal, breed, sex, birthday (→ age), weight and usual sleep/litter visits; each sensor's
+role, threshold, food/water calibration, wiring pins and **location** (Settings → Sensor locations: note, position on
+the tray, facing, floor or raised). The desktop adopts them within a second, so its sensor assignments always match
+the Pi. Local desktop edits to these are replaced while it is connected; laptop-only options (container litres) are kept.
+The 3D tab draws each sensor at its saved location.
+
+### Pets and care reminders
+
+Settings → **My pets** keeps up to 12 profiles (avatar, breed, birthday → age, sex, weight, notes, usual sleep and
+litter visits). The sensors cannot tell pets apart, so live tracking, the wellness score and routine alerts follow the
+one **monitored** pet. Settings → **Care reminders** holds vaccinations, vet visits, grooming, medicine and so on, with
+optional repeats. Due and overdue reminders appear on Home; from 09:00 each one raises one alert per day (and a
+Telegram message if enabled). **Done** moves a repeating reminder to its next date and removes a one-off one.
+Existing installs are upgraded automatically: the previous single pet becomes the first, monitored pet.
+
 ### 3D tab
 
 The phone app's **3D** tab shows the prototype (tray, partitions, bed, bottle, five sensors) with one pet:

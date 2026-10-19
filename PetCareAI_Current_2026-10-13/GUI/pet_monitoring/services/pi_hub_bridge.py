@@ -134,6 +134,8 @@ class PiHubBridge(QObject):
     @Slot(dict)
     def forward(self, message):
         # This signal contains only messages accepted by the original receiver.
+        if message.get("type") == "HUB_SYNC":
+            return  # comes from the hub itself
         self.sync_configuration()
         if self.legacy:
             if not self.source_connected or message["type"] == "CONFIG_ACK":

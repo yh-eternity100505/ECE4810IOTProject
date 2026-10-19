@@ -58,6 +58,12 @@ MIN_COVERAGE_HOURS = 20      # daily checks need this much observed time
 SESSION_SECONDS = 14 * 86400
 PBKDF2_ITERATIONS = 600_000
 MAX_BODY = 16 * 1024
+SENSOR_PINS = {"1": [13, 15], "2": [16, 18], "3": [22, 24], "4": [29, 31], "5": [7, 11]}  # physical BOARD TRIG/ECHO
+AVATARS = ("cat", "dog", "rabbit", "hamster", "guinea_pig", "bird", "fish", "turtle")
+REMINDER_KINDS = ("vaccination", "vet", "grooming", "medicine", "parasite", "other")
+REPEAT_DAYS = (0, 7, 14, 30, 90, 180, 365)
+REMINDER_HOUR = 9           # daily reminder notifications go out after 09:00
+REMINDER_SOON_DAYS = 7
 WEIGHTS = {"sleep": .25, "toilet": .15}  # original weights, renormalised
 
 DEFAULT_SETTINGS = {
@@ -67,7 +73,19 @@ DEFAULT_SETTINGS = {
     "sensors": {"mapping": DEFAULT_MAPPING, "thresholds": {k: MODE_THRESHOLDS[m] for k, m in DEFAULT_MAPPING.items()}, "revision": 1},
     "calibration": {},
     "telegram": {"enabled": False, "token": "", "chat_id": ""},
-    "notifications": {"entrance": True, "access": True, "levels": True, "sensors": True, "baseline": True},
+    "notifications": {"entrance": True, "access": True, "levels": True, "sensors": True, "baseline": True, "reminders": True},
+    "pets": [],
+    "monitored_pet": "",
+    # Where each sensor physically sits. x 0-10 left->right, z 0 front -> 15 back of the tray;
+    # facing in degrees (0 = toward the back, 90 = right, 180 = toward the front, -90 = left).
+    "sensor_layout": {
+        "1": {"x": 1.15, "z": 14.0, "facing": 180, "mount": "floor", "note": "Food bowl, upper-left lane"},
+        "2": {"x": 8.5, "z": 15.12, "facing": 180, "mount": "raised", "note": "Above the bed, upper-right"},
+        "3": {"x": 10.15, "z": 4.75, "facing": -90, "mount": "raised", "note": "Water bottle, right side"},
+        "4": {"x": 10.15, "z": 1.15, "facing": -90, "mount": "raised", "note": "Litter box, lower-right corner"},
+        "5": {"x": 0.0, "z": 0.2, "facing": 37, "mount": "raised", "note": "Entrance, lower-left corner"},
+    },
+    "reminders": [],
     "anomaly_threshold": 0.30,
     "mirror": {"hosts": [], "port": 5005},
 }
@@ -137,12 +155,27 @@ class SettingsStore:
         old_host = mirror.pop("host", "")  # single-laptop setting from the previous version
         if old_host and old_host not in mirror["hosts"]:
             mirror["hosts"].append(old_host)
+        if not self.data["pets"]:
+            old = self.data["pet"]
+            animal = str(old.get("animal", "")).strip().lower().replace(" ", "_")
+            self.data["pets"] = [{"id": secrets.token_hex(4), "name": old.get("name", "Milo"), "animal": old.get("animal", ""),
+                                  "avatar": animal if animal in AVATARS else "cat", "breed": "", "birthday": "", "sex": "",
+                                  "weight_kg": None, "notes": "", "baseline_sleep_hours": old.get("baseline_sleep_hours", 8.0),
+                                  "baseline_toilet_visits": old.get("baseline_toilet_visits", 3.0)}]
+        if self.data["monitored_pet"] not in {pet["id"] for pet in self.data["pets"]}:
+            self.data["monitored_pet"] = self.data["pets"][0]["id"]
+        self.sync_monitored()
         if not self.data["users"]:
             # Same demo account as the desktop app; the phone app asks for a new password.
             self.data["users"] = {"admin": hash_password("pet123")}
             self.data["must_change_password"] = True
             logging.warning("Created default account admin / pet123. Change it in the app or with --set-password.")
         self.save()
+
+    def sync_monitored(self):
+        """data["pet"] mirrors the monitored pet; the sensor rules, scores and alerts read it."""
+        pet = next(p for p in self.data["pets"] if p["id"] == self.data["monitored_pet"])
+        self.data["pet"] = dict(pet)
 
     def save(self):
         with self.lock:
@@ -298,6 +331,7 @@ class Hub:
         self._last_level_save = {}
         self.last_day = db.meta("last_day", date.today().isoformat())
         self.mirror = None
+        self._last_reminder_check = -1e9
         self.edc, self.edc_error = None, None
         self.door_commands = queue.Queue(maxsize=16)
 
@@ -555,6 +589,183 @@ class Hub:
                 a["status"] = f"Wrong code · {OTP_ATTEMPTS - challenge['attempts']} attempts left."
             return False
 
+    # ---------- sensor layout and desktop sync ----------
+    def save_layout(self, layout):
+        if set(layout) != set(SENSOR_PINS):
+            raise ValueError("Send the placement of all five sensors")
+        clean = {}
+        for sensor_id, place in layout.items():
+            note = str(place.get("note") or "").strip()[:60]
+            if not finite(place.get("x"), -0.5, 10.5) or not finite(place.get("z"), -0.5, 15.5):
+                raise ValueError(f"Sensor {sensor_id}: position must be inside the tray (x 0-10, z 0-15)")
+            if not finite(place.get("facing"), -180, 180) or place.get("mount") not in ("floor", "raised"):
+                raise ValueError(f"Sensor {sensor_id}: choose a facing direction and a mount")
+            clean[sensor_id] = {"x": round(float(place["x"]), 2), "z": round(float(place["z"]), 2),
+                                "facing": int(place["facing"]), "mount": place["mount"], "note": note}
+        with self.settings.lock:
+            self.settings.data["sensor_layout"] = clean
+            self.settings.save()
+
+    def sync_message(self):
+        """Everything a desktop dashboard mirrors from the hub: the monitored pet and the hardware setup."""
+        with self.lock:
+            data = self.settings.data
+            pet = data["pet"]
+            sensors = {}
+            for sensor_id, pins in SENSOR_PINS.items():
+                entry = {"pins": pins, "location": dict(data["sensor_layout"][sensor_id])}
+                if sensor_id == "5":
+                    entry["role"] = "entrance"
+                else:
+                    calibration = data["calibration"].get(sensor_id)
+                    entry.update(role=self.sensors["mapping"][sensor_id], threshold_cm=self.sensors["thresholds"][sensor_id],
+                                 calibration={"full_cm": calibration["full_cm"], "empty_cm": calibration["empty_cm"]} if calibration else None)
+                sensors[sensor_id] = entry
+            return {"type": "HUB_SYNC", "revision": self.sensors["revision"],
+                    "pet": {k: pet.get(k) for k in ("name", "animal", "breed", "sex", "birthday", "weight_kg", "avatar",
+                                                    "baseline_sleep_hours", "baseline_toilet_visits")},
+                    "pets_total": len(data["pets"]), "sensors": sensors}
+
+    # ---------- pets and care reminders ----------
+    def save_pet(self, body):
+        def text(key, limit):
+            return str(body.get(key) or "").strip()[:limit]
+        name = text("name", 40)
+        if not name:
+            raise ValueError("Give your pet a name")
+        avatar = body.get("avatar", "cat")
+        if avatar not in AVATARS:
+            raise ValueError("Unknown avatar")
+        birthday = text("birthday", 10)
+        if birthday:
+            if date.fromisoformat(birthday) > date.today():
+                raise ValueError("The birthday can't be in the future")
+        sex = body.get("sex") or ""
+        if sex not in ("", "female", "male"):
+            raise ValueError("Sex must be female, male or blank")
+        weight = body.get("weight_kg")
+        if weight in ("", None):
+            weight = None
+        elif not finite(weight, 0.01, 200):
+            raise ValueError("Weight must be 0.01-200 kg")
+        sleep, toilet = body.get("baseline_sleep_hours", 8), body.get("baseline_toilet_visits", 3)
+        if not finite(sleep, 0.5, 24) or not finite(toilet, 0.5, 50):
+            raise ValueError("Usual sleep must be 0.5-24 h and usual litter visits 0.5-50")
+        pet = {"name": name, "animal": text("animal", 30), "avatar": avatar, "breed": text("breed", 40),
+               "birthday": birthday, "sex": sex, "weight_kg": None if weight is None else round(float(weight), 2),
+               "notes": text("notes", 300), "baseline_sleep_hours": float(sleep), "baseline_toilet_visits": float(toilet)}
+        with self.settings.lock:
+            pets = self.settings.data["pets"]
+            existing = next((p for p in pets if p["id"] == body.get("id")), None)
+            if existing:
+                existing.update(pet)
+            else:
+                if len(pets) >= 12:
+                    raise ValueError("Up to 12 pets")
+                existing = {"id": secrets.token_hex(4), **pet}
+                pets.append(existing)
+            if body.get("monitored"):
+                self.settings.data["monitored_pet"] = existing["id"]
+            self.settings.sync_monitored()
+            self.settings.save()
+        return existing["id"]
+
+    def delete_pet(self, pet_id):
+        with self.settings.lock:
+            pets = self.settings.data["pets"]
+            if len(pets) == 1:
+                raise ValueError("Keep at least one pet")
+            if not any(p["id"] == pet_id for p in pets):
+                raise ValueError("Unknown pet")
+            self.settings.data["pets"] = [p for p in pets if p["id"] != pet_id]
+            self.settings.data["reminders"] = [r for r in self.settings.data["reminders"] if r["pet_id"] != pet_id]
+            if self.settings.data["monitored_pet"] == pet_id:
+                self.settings.data["monitored_pet"] = self.settings.data["pets"][0]["id"]
+            self.settings.sync_monitored()
+            self.settings.save()
+
+    def set_monitored(self, pet_id):
+        with self.settings.lock:
+            if not any(p["id"] == pet_id for p in self.settings.data["pets"]):
+                raise ValueError("Unknown pet")
+            self.settings.data["monitored_pet"] = pet_id
+            self.settings.sync_monitored()
+            self.settings.save()
+
+    def save_reminder(self, body):
+        title = str(body.get("title") or "").strip()[:60]
+        kind, repeat = body.get("kind", "other"), body.get("repeat_days", 0)
+        if not title:
+            raise ValueError("Give the reminder a title")
+        if kind not in REMINDER_KINDS:
+            raise ValueError("Unknown reminder type")
+        if repeat not in REPEAT_DAYS:
+            raise ValueError("Unsupported repeat interval")
+        due = date.fromisoformat(str(body.get("due", ""))).isoformat()
+        reminder = {"pet_id": body.get("pet_id"), "title": title, "kind": kind, "due": due,
+                    "repeat_days": repeat, "notes": str(body.get("notes") or "").strip()[:200]}
+        with self.settings.lock:
+            if not any(p["id"] == reminder["pet_id"] for p in self.settings.data["pets"]):
+                raise ValueError("Choose which pet this is for")
+            reminders = self.settings.data["reminders"]
+            existing = next((r for r in reminders if r["id"] == body.get("id")), None)
+            if existing:
+                existing.update(reminder)
+            else:
+                if len(reminders) >= 100:
+                    raise ValueError("Up to 100 reminders")
+                reminders.append({"id": secrets.token_hex(4), **reminder})
+            self.settings.save()
+
+    def complete_reminder(self, reminder_id):
+        """Repeating reminders move to their next date; one-off reminders are removed."""
+        with self.settings.lock:
+            reminders = self.settings.data["reminders"]
+            reminder = next((r for r in reminders if r["id"] == reminder_id), None)
+            if not reminder:
+                raise ValueError("Unknown reminder")
+            if reminder["repeat_days"]:
+                due = date.fromisoformat(reminder["due"])
+                while due <= date.today():
+                    due += timedelta(days=reminder["repeat_days"])
+                reminder["due"] = due.isoformat()
+            else:
+                reminders.remove(reminder)
+            self.settings.save()
+
+    def delete_reminder(self, reminder_id):
+        with self.settings.lock:
+            self.settings.data["reminders"] = [r for r in self.settings.data["reminders"] if r["id"] != reminder_id]
+            self.settings.save()
+
+    def reminders_due(self, days=REMINDER_SOON_DAYS):
+        """Reminders overdue or due within `days`, soonest first, with the pet's name and avatar."""
+        today = date.today()
+        pets = {p["id"]: p for p in self.settings.data["pets"]}
+        due = []
+        for r in self.settings.data["reminders"]:
+            days_left = (date.fromisoformat(r["due"]) - today).days
+            if days_left <= days and r["pet_id"] in pets:
+                pet = pets[r["pet_id"]]
+                due.append({**r, "days_left": days_left, "pet_name": pet["name"], "pet_avatar": pet["avatar"]})
+        return sorted(due, key=lambda r: r["days_left"])
+
+    def _send_reminders(self, today):
+        """Alert once per due/overdue reminder per day; the sent list survives restarts."""
+        try:
+            sent = set(json.loads(self.db.meta("reminders_sent", "{}")).get(today, []))
+        except ValueError:
+            sent = set()
+        due = [r for r in self.reminders_due(days=0) if r["id"] not in sent]
+        if not due:
+            return
+        self.db.set_meta("reminders_sent", json.dumps({today: sorted(sent | {r["id"] for r in due})}))
+        for r in due:
+            when = "today" if r["days_left"] == 0 else f"{-r['days_left']} day{'s' if r['days_left'] != -1 else ''} overdue"
+            self.raise_alert(f"reminder:{r['id']}:{today}", "INFO", f"{r['pet_name']}: {r['title']} ({when})",
+                             f"Care reminder for {r['pet_name']}: {r['title']} is due {r['due']}. "
+                             "Mark it done in the app under Settings → Care reminders.", "reminders")
+
     # ---------- alerts ----------
     def raise_alert(self, condition, severity, title, message, category):
         with self.lock:
@@ -600,6 +811,9 @@ class Hub:
             if now - self._last_flush >= 15:
                 self.flush()
             today = date.today().isoformat()
+            if datetime.now().hour >= REMINDER_HOUR and now - self._last_reminder_check >= 60:
+                self._last_reminder_check = now
+                self._send_reminders(today)
             if today != self.last_day:
                 self.flush()
                 self._close_day(self.last_day)
@@ -702,6 +916,10 @@ class Hub:
             "last_visit": dict(zip(("timestamp", "mode", "duration"), last_visit[0])) if last_visit else None,
             "alerts": {"unread": alerts[0] or 0, "critical": alerts[1] or 0}, "active_conditions": active,
             "must_change_password": must_change, "telegram_configured": self.telegram.configured(),
+            "pets": [{k: p[k] for k in ("id", "name", "avatar", "animal")} for p in self.settings.data["pets"]],
+            "monitored_pet": self.settings.data["monitored_pet"],
+            "layout": self.settings.data["sensor_layout"],
+            "reminders_due": self.reminders_due(),
             "mirror": {"hosts": list(self.settings.data["mirror"]["hosts"]), "states": self.mirror.states() if self.mirror else [],
                        "encryption": self.edc_error or ("EDC + HMAC" if self.edc else "Off: no keys on the Pi, sent unencrypted")},
         }
@@ -1083,6 +1301,7 @@ class Mirror(threading.Thread):
             self.stop.wait(10)
             return
         buffer, dashboard, acknowledged = b"", None, None
+        synced, next_sync_check = None, 0.0
         limit = EDC_MAX_WIRE if self.codec else 4096
         while not self.stop.is_set():
             try:
@@ -1095,12 +1314,21 @@ class Mirror(threading.Thread):
                     message = self._receive(json.loads(line))
                     if isinstance(message, dict) and message.get("type") == "SET_CONFIG" and isinstance(message.get("revision"), int):
                         dashboard, acknowledged = {"revision": message["revision"], "mapping": message.get("mapping")}, None
+                        if dashboard["mapping"] != self.hub.sensors["mapping"]:
+                            synced = None  # the dashboard drifted (or just connected): resend the hub's setup
                 if len(buffer) > limit:
                     raise ValueError("Dashboard message too large")
             except socket.timeout:
                 pass
             if dashboard is None:
                 continue  # send nothing until the dashboard has identified itself
+            if time.monotonic() >= next_sync_check:
+                # The dashboard adopts the hub's pet details and sensor setup; resend whenever they change.
+                next_sync_check = time.monotonic() + 1
+                sync = self.hub.sync_message()
+                if sync != synced:
+                    self._send(connection, {**sync, "timestamp": datetime.now().isoformat()})
+                    synced = sync
             with self.hub.lock:
                 hub_mapping, hub_revision = dict(self.hub.sensors["mapping"]), self.hub.sensors["revision"]
             matches = dashboard is not None and dashboard["mapping"] == hub_mapping
@@ -1313,6 +1541,12 @@ class Handler(BaseHTTPRequestHandler):
             "/api/access/request": lambda: (self._user(), self.hub.request_otp(self._body().get("username", "")), self._json({"ok": True})),
             "/api/access/verify": lambda: (self._user(), self._json({"ok": self.hub.verify_otp(self._body().get("code", ""))})),
             "/api/settings/pet": self.post_pet,
+            "/api/pets/save": lambda: (self._user(), self._json({"ok": True, "id": self.hub.save_pet(self._body())})),
+            "/api/pets/delete": lambda: (self._user(), self.hub.delete_pet(self._body().get("id")), self._json({"ok": True})),
+            "/api/pets/monitor": lambda: (self._user(), self.hub.set_monitored(self._body().get("id")), self._json({"ok": True})),
+            "/api/reminders/save": lambda: (self._user(), self.hub.save_reminder(self._body()), self._json({"ok": True})),
+            "/api/reminders/done": lambda: (self._user(), self.hub.complete_reminder(self._body().get("id")), self._json({"ok": True})),
+            "/api/reminders/delete": lambda: (self._user(), self.hub.delete_reminder(self._body().get("id")), self._json({"ok": True})),
             "/api/settings/sensors": self.post_sensors,
             "/api/settings/calibration": self.post_calibration,
             "/api/settings/telegram": self.post_telegram,
@@ -1320,6 +1554,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/settings/notifications": self.post_notifications,
             "/api/account/password": self.post_password,
             "/api/settings/mirror": self.post_mirror,
+            "/api/settings/layout": lambda: (self._user(), self.hub.save_layout(self._body().get("layout") or {}), self._json({"ok": True})),
         })
 
     # ----- auth -----
@@ -1395,7 +1630,8 @@ class Handler(BaseHTTPRequestHandler):
         self._user()
         s = self.hub.settings.data
         t = s["telegram"]
-        self._json({"pet": s["pet"], "sensors": self.hub.sensors, "calibration": s["calibration"],
+        self._json({"pet": s["pet"], "pets": s["pets"], "monitored_pet": s["monitored_pet"], "reminders": s["reminders"],
+                    "layout": s["sensor_layout"], "pins": SENSOR_PINS, "avatars": AVATARS, "reminder_kinds": REMINDER_KINDS, "repeat_days": REPEAT_DAYS, "sensors": self.hub.sensors, "calibration": s["calibration"],
                     "dashboard_source": self.hub.dashboard_source,
                     "notifications": s["notifications"], "modes": MODES, "default_thresholds": MODE_THRESHOLDS, "mirror": s["mirror"],
                     "telegram": {"enabled": t["enabled"], "chat_id": t["chat_id"], "has_token": bool(t["token"])}})
@@ -1403,14 +1639,10 @@ class Handler(BaseHTTPRequestHandler):
     def post_pet(self):
         self._user()
         body = self._body()
-        name, animal = str(body.get("name", "")).strip()[:40], str(body.get("animal", "")).strip()[:40]
-        sleep, toilet = body.get("baseline_sleep_hours"), body.get("baseline_toilet_visits")
-        if not name or not finite(sleep, 0.5, 24) or not finite(toilet, 0.5, 50):
-            raise ApiError(400, "Enter a name, usual sleep (0.5-24 h) and usual litter visits (0.5-50)")
-        with self.hub.settings.lock:
-            self.hub.settings.data["pet"] = {"name": name, "animal": animal, "baseline_sleep_hours": float(sleep),
-                                             "baseline_toilet_visits": float(toilet)}
-            self.hub.settings.save()
+        # Older clients: update the monitored pet's basics, keeping its other profile fields.
+        current = dict(self.hub.settings.data["pet"])
+        current.update({k: body[k] for k in ("name", "animal", "baseline_sleep_hours", "baseline_toilet_visits") if k in body})
+        self.hub.save_pet(current)
         self._json({"ok": True})
 
     def post_sensors(self):

@@ -12,14 +12,80 @@ from pet_monitoring.security.edc_settings import has_saved_keys, load_codec
 CLASSES = {"PASS_BY", "APPROACH_STAY", "AUTH_GESTURE"}
 
 
+def _text(value, limit, name):
+    if value is None:
+        return ""
+    if not isinstance(value, str) or len(value) > limit:
+        raise ValueError(f"Invalid {name}")
+    return value
+
+
+def _number(value, low, high, name):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not low <= value <= high:
+        raise ValueError(f"Invalid {name}")
+    return value
+
+
+def parse_hub_sync(message):
+    """Pet details and hardware setup pushed by the Pi hub (see services/hub_sync.py)."""
+    pet, sensors = message.get("pet"), message.get("sensors")
+    if not isinstance(pet, dict) or not isinstance(sensors, dict) or set(sensors) != {"1", "2", "3", "4", "5"}:
+        raise ValueError("Invalid hub sync")
+    clean_pet = {"name": _text(pet.get("name"), 40, "pet name"), "animal": _text(pet.get("animal"), 40, "animal"),
+                 "breed": _text(pet.get("breed"), 40, "breed"), "avatar": _text(pet.get("avatar"), 20, "avatar"),
+                 "birthday": _text(pet.get("birthday"), 10, "birthday"), "sex": _text(pet.get("sex"), 6, "sex"),
+                 "weight_kg": None if pet.get("weight_kg") is None else _number(pet["weight_kg"], 0, 200, "weight"),
+                 "baseline_sleep_hours": _number(pet.get("baseline_sleep_hours"), .1, 24, "usual sleep"),
+                 "baseline_toilet_visits": _number(pet.get("baseline_toilet_visits"), .1, 100, "usual litter visits")}
+    if not clean_pet["name"] or clean_pet["sex"] not in {"", "female", "male"}:
+        raise ValueError("Invalid pet details")
+    if clean_pet["birthday"]:
+        from datetime import date
+        date.fromisoformat(clean_pet["birthday"])
+    clean_sensors = {}
+    for key, value in sensors.items():
+        if not isinstance(value, dict):
+            raise ValueError("Invalid sensor sync")
+        location, pins = value.get("location"), value.get("pins")
+        if not isinstance(location, dict) or not isinstance(pins, list) or len(pins) != 2 or not all(type(p) is int for p in pins):
+            raise ValueError("Invalid sensor sync")
+        entry = {"pins": pins, "location": {"x": _number(location.get("x"), -1, 11, "x"), "z": _number(location.get("z"), -1, 16, "z"),
+                                            "facing": _number(location.get("facing"), -180, 180, "facing"),
+                                            "mount": location.get("mount") if location.get("mount") in {"floor", "raised"} else "raised",
+                                            "note": _text(location.get("note"), 60, "location note")}}
+        if key == "5":
+            if value.get("role") != "entrance":
+                raise ValueError("Sensor 5 must stay the entrance sensor")
+            entry["role"] = "entrance"
+        else:
+            if value.get("role") not in {"eat", "sleep", "water", "toilet"}:
+                raise ValueError("Invalid sensor role")
+            calibration = value.get("calibration")
+            if calibration is not None:
+                if not isinstance(calibration, dict):
+                    raise ValueError("Invalid calibration")
+                full, empty = _number(calibration.get("full_cm"), 0, 400, "full"), _number(calibration.get("empty_cm"), 0, 400, "empty")
+                if not 0 < full < empty:
+                    raise ValueError("Invalid calibration")
+                calibration = {"full_cm": float(full), "empty_cm": float(empty)}
+            entry.update(role=value["role"], threshold_cm=_number(value.get("threshold_cm"), 1, 400, "threshold"), calibration=calibration)
+        clean_sensors[key] = entry
+    revision, total = message.get("revision"), message.get("pets_total")
+    if type(revision) is not int or revision < 1 or type(total) is not int or total < 1:
+        raise ValueError("Invalid hub sync")
+    return {"revision": revision, "pets_total": total, "pet": clean_pet, "sensors": clean_sensors}
+
+
 def parse_message(line):
     message = json.loads(line)
     if not isinstance(message, dict):
         raise ValueError("Expected a JSON object")
     kind = message.get("type")
-    if kind not in {"IDLE", "TRIGGERED", "RECORDING", "MOVEMENT_RESULT", "CONFIG_ACK", "SENSOR_READING", "ZONE_EVENT", "GESTURE_READING"}:
+    if kind not in {"IDLE", "TRIGGERED", "RECORDING", "MOVEMENT_RESULT", "CONFIG_ACK", "SENSOR_READING", "ZONE_EVENT", "GESTURE_READING", "HUB_SYNC"}:
         raise ValueError("Unknown message type")
     result = {"type": kind}
+    if kind == "HUB_SYNC":
+        return {**result, **parse_hub_sync(message)}
     if kind == "GESTURE_READING":
         if str(message.get("sensor_id")) != "5":
             raise ValueError("Gesture telemetry must be Sensor 5")

@@ -61,6 +61,19 @@ class HubController(QObject):
             raise ValueError("Assign a valid pet mode to Sensors 1–4")
         if set(thresholds) != set(DEFAULT_MAPPING) or any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or not 1 <= v <= 400 for v in thresholds.values()):
             raise ValueError("Thresholds must be between 1 and 400 cm")
+        return self._store_configuration(mapping, thresholds, "Saved locally. Waiting for the Raspberry Pi to acknowledge the configuration.")
+
+    def apply_remote_configuration(self, mapping, thresholds):
+        """Sensor roles and thresholds pushed by the Pi hub (the master copy); no local sign-in needed."""
+        return self._store_configuration(mapping, thresholds, "Sensor setup updated from the Pi hub.")
+
+    def apply_remote_calibration(self, values):
+        self.c.db.set("level_calibration", values)
+        self.level_calibration = values
+        self._last_level_save.clear()
+        self.changed.emit()
+
+    def _store_configuration(self, mapping, thresholds, feedback):
         next_revision = self.revision + 1
         self._advance_activity()
         if not self.c.db.set("hub_configuration", {"mapping": mapping, "thresholds": thresholds, "revision": next_revision, "lab1_thresholds_applied": True}):
@@ -74,7 +87,7 @@ class HubController(QObject):
         self.acknowledged = None
         self._reset_states()
         self.publish_configuration()
-        self.feedback = "Saved locally. Waiting for the Raspberry Pi to acknowledge the configuration."
+        self.feedback = feedback
         self.changed.emit()
         return True
 

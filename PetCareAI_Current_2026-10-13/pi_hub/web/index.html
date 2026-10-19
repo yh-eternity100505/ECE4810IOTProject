@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0f766e">
+<meta name="theme-color" content="#f6f1ff">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="PetCare">
 <link rel="manifest" href="/manifest.webmanifest">
@@ -13,93 +13,167 @@
 <script type="importmap">{"imports":{"three":"/vendor/three.module.js","three/addons/controls/OrbitControls.js":"/vendor/OrbitControls.js"}}</script>
 <style>
 :root {
-  --bg: #f3f6f6; --surface: #ffffff; --surface-2: #eef3f3; --text: #14211f; --muted: #5d6d6b; --line: #dbe4e3;
-  --accent: #0f766e; --accent-soft: #d5efec; --ok: #15803d; --ok-soft: #dcf3e3; --warn: #b45309; --warn-soft: #fbecd5;
-  --on-accent: #ffffff; --bad: #b91c1c; --bad-soft: #fbe0e0; --off: #7b8786; --off-soft: #e7ecec; --shadow: 0 1px 2px rgba(0,0,0,.05), 0 4px 14px rgba(0,0,0,.04);
+  --bg: #f6f1ff; --surface: #ffffff; --surface-2: #f1eaff; --text: #2a2140; --muted: #74698f; --line: #ebe3fb;
+  --accent: #7c3aed; --accent-soft: #ede4ff; --on-accent: #ffffff;
+  --peach: #e9692f; --peach-soft: #ffeee4; --pink: #e0457f; --pink-soft: #ffe7f0;
+  --sky: #2f7fd6; --sky-soft: #e5f1ff; --mint: #1f9a68; --mint-soft: #e0f6ec; --lilac: #7c3aed; --lilac-soft: #efe7ff;
+  --ok: #1f9a68; --ok-soft: #ddf5e9; --warn: #c8561b; --warn-soft: #ffecdf; --bad: #d63a55; --bad-soft: #ffe3e9;
+  --off: #8b83a1; --off-soft: #efebf7;
+  --hero: linear-gradient(135deg, #c7b3ff 0%, #f6b6d2 60%, #ffd0b5 100%);
+  --shadow: 0 8px 24px rgba(124, 58, 237, .10), 0 1px 3px rgba(124, 58, 237, .08);
+  --nav-shadow: 0 -6px 24px rgba(124, 58, 237, .10);
+  --twin-bg: #2b2147;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0b1719; --surface: #122427; --surface-2: #183034; --text: #e4efee; --muted: #93a9a7; --line: #23393c;
-    --accent: #2dd4bf; --accent-soft: #134440; --ok: #4ade80; --ok-soft: #133a24; --warn: #fbbf24; --warn-soft: #3d2f10;
-    --on-accent: #0b1719; --bad: #f87171; --bad-soft: #3f1a1a; --off: #8a9b99; --off-soft: #1d2f31; --shadow: none;
+    --bg: #1a1428; --surface: #251d38; --surface-2: #30264a; --text: #f3edff; --muted: #b3a7d1; --line: #3a2f57;
+    --accent: #b79cff; --accent-soft: #3b2d63; --on-accent: #1a1428;
+    --peach: #ffa27d; --peach-soft: #45291f; --pink: #ff8db8; --pink-soft: #452033;
+    --sky: #7db9ff; --sky-soft: #1f3150; --mint: #5fd3a2; --mint-soft: #1b3a2e; --lilac: #c4adff; --lilac-soft: #362a5c;
+    --ok: #5fd3a2; --ok-soft: #1b3a2e; --warn: #ffb067; --warn-soft: #45301b; --bad: #ff7a8e; --bad-soft: #47202a;
+    --off: #9c92b8; --off-soft: #2e2742;
+    --hero: linear-gradient(135deg, #4b3a85 0%, #7a3d69 65%, #8a4b3c 100%);
+    --shadow: 0 1px 0 rgba(255, 255, 255, .04); --nav-shadow: none;
   }
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--text); }
-body { font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
-main { max-width: 560px; margin: 0 auto; padding: 12px 16px calc(84px + env(safe-area-inset-bottom)); }
-h1 { font-size: 22px; margin: 0; letter-spacing: -.01em; }
-h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 22px 4px 8px; font-weight: 600; }
-h3 { font-size: 16px; margin: 0 0 4px; }
+body { font: 15px/1.45 ui-rounded, "SF Pro Rounded", "Nunito", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+main { max-width: 560px; margin: 0 auto; padding: 12px 16px calc(92px + env(safe-area-inset-bottom)); }
+h1 { font-size: 24px; margin: 0; letter-spacing: -.01em; font-weight: 800; }
+h2 { font-size: 17px; color: var(--text); margin: 24px 4px 10px; font-weight: 800; }
+h3 { font-size: 16px; margin: 0 0 4px; font-weight: 700; }
 p { margin: 0; }
 .muted { color: var(--muted); }
 .small { font-size: 13px; }
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; box-shadow: var(--shadow); }
-.card + .card { margin-top: 10px; }
+.card { background: var(--surface); border-radius: 22px; padding: 16px; box-shadow: var(--shadow); }
+.card + .card { margin-top: 12px; }
 .row { display: flex; align-items: center; gap: 10px; }
 .between { justify-content: space-between; }
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.top { display: flex; align-items: center; justify-content: space-between; padding: 8px 4px 4px; }
-.pill { font-size: 12px; padding: 4px 10px; border-radius: 99px; background: var(--off-soft); color: var(--off); white-space: nowrap; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.top { display: flex; align-items: center; justify-content: space-between; padding: 8px 4px 6px; }
+.top .hello { font-size: 13px; color: var(--muted); }
+.pill { font-size: 12px; font-weight: 700; padding: 5px 11px; border-radius: 99px; background: var(--off-soft); color: var(--off); white-space: nowrap; }
 .pill.ok { background: var(--ok-soft); color: var(--ok); } .pill.warn { background: var(--warn-soft); color: var(--warn); } .pill.bad { background: var(--bad-soft); color: var(--bad); }
-.hero { padding: 18px; }
-.hero .state { font-size: 24px; font-weight: 700; margin: 6px 0 2px; }
-.hero.ok { background: var(--ok-soft); border-color: transparent; } .hero.ok .state { color: var(--ok); }
-.hero.warn { background: var(--warn-soft); border-color: transparent; } .hero.warn .state { color: var(--warn); }
-.hero.off { background: var(--off-soft); border-color: transparent; } .hero.off .state { color: var(--off); }
+.pill.lilac { background: var(--lilac-soft); color: var(--lilac); }
+
+/* Pet hero on Home */
+.hero { background: var(--hero); padding: 18px; position: relative; overflow: hidden; }
+.hero::after { content: "🐾"; position: absolute; right: -6px; bottom: -14px; font-size: 92px; opacity: .13; transform: rotate(-18deg); pointer-events: none; }
+.hero .who { display: flex; gap: 14px; align-items: center; }
+.hero .state { font-size: 22px; font-weight: 800; margin: 14px 0 2px; }
 .hero ul { margin: 6px 0 0; padding-left: 18px; }
-.tile { padding: 14px; min-height: 112px; display: flex; flex-direction: column; gap: 4px; }
-.tile .label { font-size: 13px; color: var(--muted); display: flex; justify-content: space-between; }
-.tile .value { font-size: 20px; font-weight: 700; }
-.tile.active { border-color: var(--accent); background: var(--accent-soft); }
+.hero .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.chip { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 99px; background: rgba(255, 255, 255, .7); color: #4a3d6b; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .chip { background: rgba(0, 0, 0, .25); color: #f3edff; } }
+.status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; background: var(--off); }
+.status-dot.ok { background: var(--ok); } .status-dot.warn { background: var(--warn); }
+.avatar { width: 64px; height: 64px; border-radius: 22px; display: grid; place-items: center; font-size: 38px; background: var(--surface); box-shadow: var(--shadow); flex: none; }
+.avatar.sm { width: 44px; height: 44px; border-radius: 15px; font-size: 26px; box-shadow: none; }
+.av-cat { background: #ffe9d6; } .av-dog { background: #fff1c9; } .av-rabbit { background: #ffe1ee; } .av-hamster { background: #ffe7cf; }
+.av-guinea_pig { background: #f3e6d8; } .av-bird { background: #dff3ff; } .av-fish { background: #d9f1ff; } .av-turtle { background: #e0f6e4; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) [class*="av-"] { background: var(--surface-2); } }
+
+/* Station tiles: one pastel colour per station */
+.tile { padding: 14px; min-height: 124px; display: flex; flex-direction: column; gap: 3px; position: relative; }
+.tile .label { font-size: 13px; font-weight: 700; color: var(--muted); }
+.tile .value { font-size: 22px; font-weight: 800; }
+.tile .icon { position: absolute; top: 10px; right: 10px; font-size: 24px; width: 40px; height: 40px; border-radius: 14px; display: grid; place-items: center; background: rgba(255, 255, 255, .65); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tile .icon { background: rgba(0, 0, 0, .2); } }
+.tile.eat { background: var(--peach-soft); } .tile.eat .value { color: var(--peach); }
+.tile.sleep { background: var(--lilac-soft); } .tile.sleep .value { color: var(--lilac); }
+.tile.water { background: var(--sky-soft); } .tile.water .value { color: var(--sky); }
+.tile.toilet { background: var(--mint-soft); } .tile.toilet .value { color: var(--mint); }
+.tile.active { outline: 2px solid currentColor; }
+.tile.sleep.active { outline-color: var(--lilac); } .tile.toilet.active { outline-color: var(--mint); }
 .tile.offline .value { color: var(--off); }
 .tile.low .value { color: var(--warn); }
-.bar { height: 8px; border-radius: 99px; background: var(--surface-2); overflow: hidden; margin-top: auto; }
-.bar > span { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
-.bar.low > span { background: var(--warn); }
+.bar { height: 9px; border-radius: 99px; background: var(--surface-2); overflow: hidden; margin-top: auto; }
+.tile .bar { background: rgba(255, 255, 255, .7); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tile .bar { background: rgba(0, 0, 0, .25); } }
+.bar > span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--pink)); border-radius: 99px; }
+.tile.eat .bar > span { background: var(--peach); } .tile.water .bar > span { background: var(--sky); }
+.bar.low > span { background: var(--warn) !important; }
 .stat { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 0; border-top: 1px solid var(--line); }
 .stat:first-of-type { border-top: 0; padding-top: 4px; }
 .stat b { font-size: 18px; }
-.list .item { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.list .item { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); align-items: flex-start; }
 .list .item:first-child { border-top: 0; padding-top: 2px; }
-.dot { width: 9px; height: 9px; border-radius: 50%; margin-top: 6px; flex: none; background: var(--off); }
+.dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 6px; flex: none; background: var(--accent); }
 .dot.WARNING { background: var(--warn); } .dot.CRITICAL { background: var(--bad); } .dot.read { opacity: .25; }
 .chart { display: flex; align-items: flex-end; gap: 6px; height: 120px; position: relative; margin: 12px 0 4px; }
 .chart .col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 4px; }
-.chart .col span { width: 100%; max-width: 34px; background: var(--accent); border-radius: 6px 6px 2px 2px; min-height: 2px; }
-.chart .col.today span { background: var(--accent); opacity: .55; }
-.chart .base { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--muted); opacity: .45; }
+.chart .col span { width: 100%; max-width: 30px; background: linear-gradient(180deg, var(--accent), var(--pink)); border-radius: 10px 10px 4px 4px; min-height: 3px; }
+.chart .col.today span { opacity: .5; }
+.chart .base { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--peach); opacity: .7; }
 .chart-labels { display: flex; gap: 6px; } .chart-labels div { flex: 1; text-align: center; font-size: 11px; color: var(--muted); }
-label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
-input, select { width: 100%; font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; }
-input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--accent); }
-.check { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--line); font-size: 15px; color: var(--text); margin: 0; }
+.chart-wrap { display: grid; grid-template-columns: auto 1fr; gap: 8px; }
+.yaxis { position: relative; height: 140px; margin: 12px 0 4px; min-width: 24px; font-size: 11px; color: var(--muted); }
+.yaxis span { position: absolute; right: 0; transform: translateY(50%); white-space: nowrap; }
+.chart.scaled { height: 140px; }
+.chart .gridline { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line); }
+.chart .col { position: relative; z-index: 1; }
+.chart .col em { font-style: normal; font-size: 10px; font-weight: 700; color: var(--muted); }
+.list.scroll { max-height: 336px; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
+.more { width: 100%; margin-top: 8px; }
+.cal-row { display: flex; align-items: stretch; background: var(--surface-2); border-radius: 14px; border: 2px solid transparent; }
+.cal-row:focus-within { border-color: var(--accent); }
+.cal-row input { border: 0; background: none; min-width: 0; flex: 1; }
+.cal-row input:focus { border: 0; }
+.cal-row button { margin: 5px; padding: 6px 10px; font-size: 12px; border-radius: 10px; white-space: nowrap; }
+.cal-bowl + .cal-bowl { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+
+/* Pets and reminders */
+.pets { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 8px; scroll-snap-type: x mandatory; }
+.pet-card { flex: 0 0 116px; scroll-snap-align: start; border-radius: 20px; padding: 12px; background: var(--surface); box-shadow: var(--shadow); text-align: center; cursor: pointer; border: 2px solid transparent; color: var(--text); font-weight: 400; }
+.pet-card .avatar { margin: 0 auto 8px; }
+.pet-card b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pet-card.selected { border-color: var(--accent); }
+.pet-card.add { display: grid; place-items: center; background: var(--surface-2); box-shadow: none; color: var(--accent); font-weight: 800; }
+.avatar-pick { display: flex; gap: 8px; flex-wrap: wrap; }
+.avatar-pick button { width: 48px; height: 48px; border-radius: 15px; font-size: 26px; padding: 0; background: var(--surface-2); border: 2px solid transparent; }
+.avatar-pick button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.rem { display: flex; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+.rem:first-child { border-top: 0; padding-top: 2px; }
+.rem .what { flex: 1; min-width: 0; }
+.rem .what b { display: block; }
+.due { font-size: 12px; font-weight: 800; padding: 4px 10px; border-radius: 99px; white-space: nowrap; background: var(--lilac-soft); color: var(--lilac); }
+.due.overdue { background: var(--bad-soft); color: var(--bad); } .due.today { background: var(--peach-soft); color: var(--peach); }
+.editor { margin-top: 12px; border: 2px solid var(--accent-soft); }
+
+label { display: block; font-size: 13px; font-weight: 700; color: var(--muted); margin: 12px 0 5px; }
+input, select, textarea { width: 100%; font: inherit; color: var(--text); background: var(--surface-2); border: 2px solid transparent; border-radius: 14px; padding: 11px 13px; }
+textarea { min-height: 70px; resize: vertical; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--accent); padding: 0; }
+.check { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--line); font-size: 15px; font-weight: 400; color: var(--text); margin: 0; }
 .check:first-of-type { border-top: 0; }
-button { font: inherit; font-weight: 600; border: 0; border-radius: 10px; padding: 11px 16px; background: var(--accent); color: var(--on-accent); cursor: pointer; }
-button.ghost { background: var(--surface-2); color: var(--text); }
+button { font: inherit; font-weight: 800; border: 0; border-radius: 14px; padding: 11px 18px; background: var(--accent); color: var(--on-accent); cursor: pointer; }
+button.ghost { background: var(--accent-soft); color: var(--accent); }
 button.danger { background: var(--bad-soft); color: var(--bad); }
-button.small { padding: 7px 12px; font-size: 13px; }
+button.small { padding: 8px 13px; font-size: 13px; border-radius: 12px; }
 button:disabled { opacity: .5; }
+.link { background: none; color: var(--accent); padding: 0; font-size: 13px; }
 .actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
-.code { font: 700 30px/1 ui-monospace, Menlo, Consolas, monospace; letter-spacing: .2em; text-align: center; padding: 14px; background: var(--surface-2); border-radius: 12px; margin-top: 12px; }
-.banner { background: var(--warn-soft); color: var(--warn); border-radius: 12px; padding: 12px 14px; margin: 8px 0; font-size: 14px; }
+.code { font: 800 30px/1 ui-monospace, Menlo, Consolas, monospace; letter-spacing: .2em; text-align: center; padding: 14px; background: var(--surface-2); border-radius: 16px; margin-top: 12px; }
+.banner { background: var(--peach-soft); color: var(--peach); border-radius: 18px; padding: 12px 14px; margin: 8px 0; font-size: 14px; font-weight: 600; }
 .banner button { margin-top: 8px; }
-.toast { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); }
+.toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 14px; font-size: 14px; font-weight: 700; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); }
 .toast.show { opacity: 1; }
-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--line); display: flex; justify-content: center; padding-bottom: env(safe-area-inset-bottom); z-index: 5; }
+nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-radius: 24px 24px 0 0; box-shadow: var(--nav-shadow); display: flex; justify-content: center; padding: 6px 6px env(safe-area-inset-bottom); z-index: 5; }
 nav .inner { display: flex; width: 100%; max-width: 560px; }
-nav button { flex: 1; background: none; color: var(--muted); border-radius: 0; padding: 8px 0 10px; font-size: 11px; font-weight: 500; display: flex; flex-direction: column; align-items: center; gap: 3px; position: relative; }
+nav button { flex: 1; background: none; color: var(--muted); border-radius: 16px; padding: 6px 0 8px; font-size: 11px; font-weight: 700; display: flex; flex-direction: column; align-items: center; gap: 3px; position: relative; }
+nav button svg { width: 40px; height: 28px; padding: 3px 9px; border-radius: 99px; }
 nav button[aria-current="page"] { color: var(--accent); }
-nav svg { width: 24px; height: 24px; }
-.badge { position: absolute; top: 4px; left: calc(50% + 6px); background: var(--bad); color: #fff; font-size: 10px; font-weight: 700; border-radius: 99px; min-width: 17px; padding: 1px 5px; }
-.login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
+nav button[aria-current="page"] svg { background: var(--accent-soft); }
+.badge { position: absolute; top: 2px; left: calc(50% + 8px); background: var(--pink); color: #fff; font-size: 10px; font-weight: 800; border-radius: 99px; min-width: 18px; padding: 1px 5px; }
+.login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; background: var(--hero); }
 .login .card { width: 100%; max-width: 380px; }
 .hidden { display: none !important; }
 .twin-card { padding: 0; overflow: hidden; }
-.twin-canvas { height: min(58vh, 540px); background: #152333; touch-action: none; position: relative; }
+.twin-canvas { height: min(58vh, 540px); background: var(--twin-bg); touch-action: none; position: relative; }
 .twin-canvas canvas { display: block; width: 100%; height: 100%; }
-.twin-state { position: absolute; left: 10px; right: 10px; top: 10px; background: rgba(16,27,43,.85); color: #e4efee; border-radius: 10px; padding: 8px 12px; font-size: 13px; pointer-events: none; }
+.twin-state { position: absolute; left: 10px; right: 10px; top: 10px; background: rgba(43, 33, 71, .85); color: #f3edff; border-radius: 14px; padding: 8px 12px; font-size: 13px; font-weight: 700; pointer-events: none; }
 .twin-tools { display: flex; gap: 8px; align-items: center; padding: 10px 12px; flex-wrap: wrap; }
 .twin-tools label { margin: 0 0 0 auto; display: flex; gap: 6px; align-items: center; color: var(--text); font-size: 13px; }
 .twin-tools input[type=checkbox] { width: 18px; height: 18px; }
@@ -111,7 +185,7 @@ nav svg { width: 24px; height: 24px; }
 <section id="login" class="login hidden">
   <form class="card" id="login-form">
     <div class="row"><img src="/icon.svg" alt="" width="40" height="40"><h1>PetCare AI</h1></div>
-    <p class="muted small" style="margin-top:6px">Sign in to see how your pet is doing.</p>
+    <p class="muted small" style="margin-top:6px">Sign in to see how your furry friend is doing 🐾</p>
     <label for="lu">Username</label><input id="lu" autocomplete="username" required>
     <label for="lp">Password</label><input id="lp" type="password" autocomplete="current-password" required>
     <div class="actions"><button type="submit" style="width:100%">Sign in</button></div>
@@ -121,7 +195,7 @@ nav svg { width: 24px; height: 24px; }
 
 <div id="app" class="hidden">
   <main>
-    <div class="top"><h1 id="title">PetCare AI</h1><span class="pill" id="link-pill">…</span></div>
+    <div class="top"><div><p class="hello" id="hello">Hello!</p><h1 id="title">PetCare AI</h1></div><span class="pill" id="link-pill">…</span></div>
     <div id="password-banner" class="banner hidden">You're using the default password. Change it in Settings → Account to keep your pet's data private.</div>
     <div id="view"></div>
   </main>
@@ -144,6 +218,29 @@ const ICONS = {
 const TABS = [["home","Home"],["twin","3D"],["activity","Activity"],["alerts","Alerts"],["access","Access"],["settings","Settings"]];
 const GESTURES = {PASS_BY: "Walked past", APPROACH_STAY: "Waited at the door", AUTH_GESTURE: "Unlock gesture", ACCESS_GRANTED: "Access granted"};
 const PLACES = {eat: "food bowl", water: "water bowl", sleep: "bed", toilet: "litter box"};
+const AVATARS = {cat: "🐱", dog: "🐶", rabbit: "🐰", hamster: "🐹", guinea_pig: "🐭", bird: "🐦", fish: "🐠", turtle: "🐢"};
+const STATION = {eat: "🥣", sleep: "🛏️", water: "💧", toilet: "🧻"};
+const KINDS = {vaccination: ["💉", "Vaccination"], vet: ["🩺", "Vet check-up"], grooming: ["✂️", "Grooming"], medicine: ["💊", "Medicine"], parasite: ["🐛", "Flea / worming"], other: ["📌", "Other"]};
+const FACINGS = [[0, "↑ Back"], [45, "↗ Back-right"], [90, "→ Right"], [135, "↘ Front-right"], [180, "↓ Front"], [-135, "↙ Front-left"], [-90, "← Left"], [-45, "↖ Back-left"]];
+const REPEATS = {0: "Doesn't repeat", 7: "Every week", 14: "Every 2 weeks", 30: "Every month", 90: "Every 3 months", 180: "Every 6 months", 365: "Every year"};
+const avatar = (a, size = "") => `<span class="avatar ${size} av-${esc(a)}">${AVATARS[a] || "🐾"}</span>`;
+function age(birthday) {
+  if (!birthday) return "";
+  const b = new Date(birthday + "T12:00"), n = new Date();
+  let months = (n.getFullYear() - b.getFullYear()) * 12 + n.getMonth() - b.getMonth() - (n.getDate() < b.getDate() ? 1 : 0);
+  if (months < 1) return `${Math.max(0, Math.floor((n - b) / 604800000))} wk`;
+  return months < 12 ? `${months} mo` : `${Math.floor(months / 12)} yr${months % 12 ? ` ${months % 12} mo` : ""}`;
+}
+function petChips(p) {
+  return [p.breed || p.animal, age(p.birthday), p.weight_kg ? `${p.weight_kg} kg` : "", p.sex === "female" ? "♀ Girl" : p.sex === "male" ? "♂ Boy" : ""]
+    .filter(Boolean).map((c) => `<span class="chip">${esc(c)}</span>`).join("");
+}
+function dueBadge(days) {
+  if (days < 0) return `<span class="due overdue">${-days} day${days === -1 ? "" : "s"} overdue</span>`;
+  if (days === 0) return '<span class="due today">Today</span>';
+  return `<span class="due">${days === 1 ? "Tomorrow" : `In ${days} days`}</span>`;
+}
+function greeting() { const h = new Date().getHours(); return h < 12 ? "Good morning ☀️" : h < 18 ? "Good afternoon 🌤️" : "Good evening 🌙"; }
 const CONDITIONS = {level: "A bowl is running low", zone_silent: "A sensor isn't responding", service_offline: "Sensors are offline"};
 let tab = "home", status = null, settings = null, accessKey = "";
 
@@ -202,7 +299,8 @@ function go(name) {
 // ---------- polling ----------
 async function refresh() {
   try { status = await api("/api/status"); } catch { return; }
-  $("title").textContent = status.pet.name;
+  $("title").textContent = "PetCare AI";
+  $("hello").textContent = greeting();
   const pill = $("link-pill");
   const live = status.link.configured;
   pill.textContent = live ? "● Live" : status.link.connected ? "Connecting…" : "Offline";
@@ -250,7 +348,7 @@ function tile(z) {
     }
   } else if (z.presence) { value = z.mode === "sleep" ? "Resting" : "In use"; note = dur(z.since_seconds); cls = "active"; }
   else { value = "Empty"; note = "Nobody here"; }
-  return `<div class="card tile ${cls}"><div class="label"><span>${esc(z.name)}</span></div><div class="value">${esc(value)}</div><div class="muted small">${esc(note)}</div>${bar}</div>`;
+  return `<div class="card tile ${z.mode} ${cls}"><span class="icon">${STATION[z.mode]}</span><div class="label">${esc(z.name)}</div><div class="value">${esc(value)}</div><div class="muted small">${esc(note)}</div>${bar}</div>`;
 }
 function renderHome() {
   const s = status;
@@ -260,12 +358,15 @@ function renderHome() {
   const sleepPct = Math.min(100, (t.sleep_hours / p.baseline_sleep_hours) * 100);
   const gestureLine = s.gesture.online ? (s.gesture.state === "RECORDING" ? "Reading a movement…" : s.gesture.state === "CLASSIFYING" ? "Checking the movement…" : "Watching the door") : "Entrance sensor offline";
   $("view").innerHTML = `
-    <div class="card hero ${tone}">
-      <p class="small muted">${esc(p.animal || "Pet")} · ${esc(p.name)}</p>
-      <p class="state">${esc(state)}</p>
+    <div class="card hero">
+      <div class="who">${avatar(p.avatar)}<div><h1>${esc(p.name)}</h1><div class="chips">${petChips(p)}</div></div></div>
+      <p class="state"><span class="status-dot ${tone}"></span>${esc(state)}</p>
       <p>${esc(tone === "off" ? reasons[0] : doing(s))}</p>
       ${tone === "warn" ? `<ul>${reasons.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>` : ""}
     </div>
+    ${s.reminders_due.length ? `<h2>Care reminders</h2><div class="card">${s.reminders_due.slice(0, 3).map((r) => `
+      <div class="rem">${avatar(r.pet_avatar, "sm")}<div class="what"><b>${KINDS[r.kind][0]} ${esc(r.title)}</b><span class="muted small">${esc(r.pet_name)} · ${esc(r.due)}</span></div>${dueBadge(r.days_left)}</div>`).join("")}
+      <div class="actions"><button class="ghost small" onclick="go('settings')">Manage reminders</button></div></div>` : ""}
     ${s.access.window_open ? `<div class="banner">Someone made the unlock gesture at the entrance.<br><button class="small" onclick="go('access')">Open Access</button></div>` : ""}
     <h2>Right now</h2>
     <div class="grid">${s.zones.map(tile).join("")}</div>
@@ -276,6 +377,8 @@ function renderHome() {
       <div class="stat"><span>Litter box visits</span><span><b>${t.toilet_visits}</b> <span class="muted small">/ usual ${p.baseline_toilet_visits}</span></span></div>
       <div class="stat"><span>Yesterday's wellness</span><span>${y && y.score !== null ? `<b>${y.score}</b> <span class="muted small">${esc(y.status.toLowerCase())}</span>` : '<span class="muted small">Needs a full day of data</span>'}</span></div>
     </div>
+    ${s.pets.length > 1 ? `<h2>My pets</h2><div class="pets">${s.pets.map((x) => `
+      <button class="pet-card ${x.id === s.monitored_pet ? "selected" : ""}" onclick="go('settings')">${avatar(x.avatar)}<b>${esc(x.name)}</b><span class="muted small">${x.id === s.monitored_pet ? "📡 Monitored" : esc(x.animal || "")}</span></button>`).join("")}</div>` : ""}
     <h2>Entrance</h2>
     <div class="card row between">
       <div><h3>${esc(gestureLine)}</h3><p class="muted small">${g ? `Last: ${esc(GESTURES[g.prediction] || g.prediction)} · ${ago(g.timestamp)}` : "No movements yet"}</p></div>
@@ -321,11 +424,34 @@ function updateTwin() {
 }
 
 // ---------- activity ----------
-function chart(days, key, baseline, fmt) {
-  const max = Math.max(baseline * 1.25, ...days.map((d) => d[key]), 0.1);
-  return `<div class="chart"><div class="base" style="bottom:${(baseline / max) * 100}%" title="usual"></div>${days.map((d, i) =>
-    `<div class="col ${i === days.length - 1 ? "today" : ""}" title="${esc(fmt(d[key]))}"><span style="height:${(d[key] / max) * 100}%"></span></div>`).join("")}</div>
-    <div class="chart-labels">${days.map((d) => `<div>${dayLabel(d.day)}</div>`).join("")}</div>`;
+function axisTicks(maxValue, whole) {
+  // Up to five round steps (1, 2, 2.5 or 5 x 10^n); whole-number steps for counts.
+  const raw = Math.max(maxValue, whole ? 1 : 0.1) / 5, power = 10 ** Math.floor(Math.log10(raw)), n = raw / power;
+  let step = (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * power;
+  if (whole) step = Math.max(1, Math.ceil(step));
+  const top = step * Math.ceil(maxValue / step - 1e-9) || step;
+  return Array.from({length: Math.round(top / step) + 1}, (_, i) => +(i * step).toFixed(2));
+}
+const tick = (v) => Number.isInteger(v) ? String(v) : v.toFixed(1);
+function chart(days, key, baseline, fmt, unit = "") {
+  // Axis covers both the data and the usual value.
+  const whole = days.every((d) => Number.isInteger(d[key])) && Number.isInteger(baseline);
+  const ticks = axisTicks(Math.max(baseline, ...days.map((d) => d[key])), whole), top = ticks[ticks.length - 1];
+  const pct = (v) => Math.min(100, (v / top) * 100);
+  return `<div class="chart-wrap">
+    <div class="yaxis">${ticks.map((t) => `<span style="bottom:${pct(t)}%">${tick(t)}${t === top ? unit : ""}</span>`).join("")}</div>
+    <div><div class="chart scaled">${ticks.slice(1).map((t) => `<div class="gridline" style="bottom:${pct(t)}%"></div>`).join("")}
+      <div class="base" style="bottom:${pct(baseline)}%" title="usual"></div>${days.map((d, i) =>
+      `<div class="col ${i === days.length - 1 ? "today" : ""}" title="${esc(fmt(d[key]))}"><em>${d[key] ? tick(Math.round(d[key] * 10) / 10) : ""}</em><span style="height:${pct(d[key])}%"></span></div>`).join("")}</div>
+    <div class="chart-labels">${days.map((d) => `<div>${dayLabel(d.day)}</div>`).join("")}</div></div></div>`;
+}
+// Recent lists: 5 rows, "Show more" expands to 10 in a scrolling box.
+const expanded = {visits: false, gestures: false};
+function shortList(id, items, row, empty) {
+  if (!items.length) return `<div class="card"><p class="muted">${empty}</p></div>`;
+  const open = expanded[id], shown = items.slice(0, open ? 10 : 5);
+  const toggle = items.length > 5 ? `<button class="ghost small more" data-more="${id}">${open ? "Show less" : `Show more (${Math.min(10, items.length)})`}</button>` : "";
+  return `<div class="card"><div class="list ${open ? "scroll" : ""}">${shown.map(row).join("")}</div>${toggle}</div>`;
 }
 async function loadActivity() {
   $("view").innerHTML = '<p class="muted" style="padding:20px 4px">Loading…</p>';
@@ -333,13 +459,21 @@ async function loadActivity() {
   if (tab !== "activity") return;
   $("view").innerHTML = `
     <h2>Sleep · last 7 days</h2>
-    <div class="card">${chart(a.days, "sleep_hours", a.baseline.sleep_hours, hours)}<p class="muted small">Dashed line: usual ${hours(a.baseline.sleep_hours)}. Today is lighter because it isn't finished.</p></div>
+    <div class="card">${chart(a.days, "sleep_hours", a.baseline.sleep_hours, hours, " h")}<p class="muted small">Hours per day. Dashed line: usual ${hours(a.baseline.sleep_hours)}. Today is lighter because it isn't finished.</p></div>
     <h2>Litter box visits · last 7 days</h2>
-    <div class="card">${chart(a.days, "toilet_visits", a.baseline.toilet_visits, (v) => `${v} visits`)}<p class="muted small">Dashed line: usual ${a.baseline.toilet_visits} a day.</p></div>
-    <h2>Recent visits</h2>
-    <div class="card list">${a.visits.length ? a.visits.map((v) => `<div class="item"><div style="flex:1"><b>${v.mode === "sleep" ? "Rested in bed" : "Used the litter box"}</b><p class="muted small">${dur(v.duration)}</p></div><span class="muted small">${ago(v.timestamp)}</span></div>`).join("") : '<p class="muted">No visits yet.</p>'}</div>
-    <h2>Entrance</h2>
-    <div class="card list">${a.gestures.length ? a.gestures.map((g) => `<div class="item"><div style="flex:1"><b>${esc(GESTURES[g.prediction] || g.prediction)}</b></div><span class="muted small">${ago(g.timestamp)}</span></div>`).join("") : '<p class="muted">No entrance activity yet.</p>'}</div>`;
+    <div class="card">${chart(a.days, "toilet_visits", a.baseline.toilet_visits, (v) => `${v} visits`)}<p class="muted small">Visits per day. Dashed line: usual ${a.baseline.toilet_visits} a day.</p></div>
+    <h2>Recent visits</h2><div id="list-visits"></div>
+    <h2>Entrance</h2><div id="list-gestures"></div>`;
+  const lists = {
+    visits: () => shortList("visits", a.visits, (v) => `<div class="item"><div style="flex:1"><b>${v.mode === "sleep" ? "🛏️ Rested in bed" : "🧻 Used the litter box"}</b><p class="muted small">${dur(v.duration)}</p></div><span class="muted small">${ago(v.timestamp)}</span></div>`, "No visits yet."),
+    gestures: () => shortList("gestures", a.gestures, (g) => `<div class="item"><div style="flex:1"><b>${esc(GESTURES[g.prediction] || g.prediction)}</b></div><span class="muted small">${ago(g.timestamp)}</span></div>`, "No entrance activity yet."),
+  };
+  const draw = (id) => {
+    $("list-" + id).innerHTML = lists[id]();
+    const b = document.querySelector(`[data-more="${id}"]`);
+    if (b) b.onclick = () => { expanded[id] = !expanded[id]; draw(id); };
+  };
+  draw("visits"); draw("gestures");
 }
 
 // ---------- alerts ----------
@@ -387,6 +521,72 @@ function renderAccess() {
 }
 
 // ---------- settings ----------
+let editingPet = null, editingRem = null;
+function remindersList(s) {
+  if (!s.reminders.length) return '<p class="muted small">No reminders yet. Add vaccinations, vet visits, grooming or medicine.</p>';
+  const pets = Object.fromEntries(s.pets.map((x) => [x.id, x]));
+  const today = new Date(new Date().toDateString());
+  return [...s.reminders].sort((a, b) => a.due.localeCompare(b.due)).map((r) => {
+    const days = Math.round((new Date(r.due + "T00:00") - today) / 86400000), pet = pets[r.pet_id] || {};
+    return `<div class="rem">${avatar(pet.avatar, "sm")}<div class="what"><b>${KINDS[r.kind][0]} ${esc(r.title)}</b>
+      <span class="muted small">${esc(pet.name)} · ${esc(r.due)}${r.repeat_days ? " · " + REPEATS[r.repeat_days].toLowerCase() : ""}</span></div>
+      <div style="display:grid;gap:6px;justify-items:end">${dueBadge(days)}<div class="row"><button class="link" data-rem="${r.id}">Edit</button><button class="link" data-rem-done="${r.id}">Done</button></div></div></div>`;
+  }).join("");
+}
+function petEditor(s) {
+  const p = s.pets.find((x) => x.id === editingPet) || {avatar: "cat", baseline_sleep_hours: 8, baseline_toilet_visits: 3};
+  const isNew = !p.id, monitored = p.id === s.monitored_pet;
+  $("pet-editor").innerHTML = `<form class="card editor" id="pet-form">
+    <div class="row between"><h3>${isNew ? "New pet" : "Edit " + esc(p.name)}</h3><button type="button" class="link" id="pet-cancel">Close</button></div>
+    <label>Avatar</label><div class="avatar-pick">${Object.entries(AVATARS).map(([k, e]) => `<button type="button" data-avatar="${k}" aria-pressed="${k === p.avatar}" title="${k.replace("_", " ")}">${e}</button>`).join("")}</div>
+    <div class="grid"><div><label for="pn">Name</label><input id="pn" value="${esc(p.name)}" required maxlength="40"></div>
+      <div><label for="pa">Animal</label><input id="pa" value="${esc(p.animal)}" maxlength="30" placeholder="Cat"></div></div>
+    <div class="grid"><div><label for="pb">Breed</label><input id="pb" value="${esc(p.breed)}" maxlength="40" placeholder="British Shorthair"></div>
+      <div><label for="px">Sex</label><select id="px"><option value="">—</option><option value="female" ${p.sex === "female" ? "selected" : ""}>Girl</option><option value="male" ${p.sex === "male" ? "selected" : ""}>Boy</option></select></div></div>
+    <div class="grid"><div><label for="pd">Birthday</label><input id="pd" type="date" value="${esc(p.birthday)}" max="${new Date().toISOString().slice(0, 10)}"></div>
+      <div><label for="pw">Weight (kg)</label><input id="pw" type="number" step="0.01" min="0.01" max="200" value="${p.weight_kg ?? ""}"></div></div>
+    <label for="pnote">Notes</label><textarea id="pnote" maxlength="300" placeholder="Allergies, favourite food, vet name…">${esc(p.notes)}</textarea>
+    <div class="grid"><div><label for="ps">Usual sleep (h/day)</label><input id="ps" type="number" step="0.5" min="0.5" max="24" value="${p.baseline_sleep_hours}"></div>
+      <div><label for="pt">Usual litter visits/day</label><input id="pt" type="number" step="0.5" min="0.5" max="50" value="${p.baseline_toilet_visits}"></div></div>
+    <label class="check" style="margin-top:10px">📡 Monitor this pet with the sensors<input type="checkbox" id="pm" ${monitored ? "checked disabled" : ""}></label>
+    <div class="actions"><button>Save</button>${isNew ? "" : '<button type="button" class="danger" id="pet-delete">Delete</button>'}</div>
+  </form>`;
+  let chosen = p.avatar;
+  document.querySelectorAll("[data-avatar]").forEach((b) => b.onclick = () => {
+    chosen = b.dataset.avatar; document.querySelectorAll("[data-avatar]").forEach((x) => x.setAttribute("aria-pressed", x === b)); });
+  $("pet-cancel").onclick = () => { editingPet = null; loadSettings(); };
+  $("pet-form").onsubmit = (e) => { e.preventDefault(); guard(e.submitter, async () => {
+    const r = await api("/api/pets/save", {id: p.id, avatar: chosen, name: $("pn").value, animal: $("pa").value, breed: $("pb").value, sex: $("px").value,
+      birthday: $("pd").value, weight_kg: $("pw").value === "" ? null : +$("pw").value, notes: $("pnote").value,
+      baseline_sleep_hours: +$("ps").value, baseline_toilet_visits: +$("pt").value, monitored: $("pm").checked});
+    editingPet = r.id; toast("Saved 🐾"); await loadSettings(); refresh(); }); };
+  if ($("pet-delete")) $("pet-delete").onclick = (e) => { if (confirm(`Delete ${p.name} and their reminders?`)) guard(e.target, async () => {
+    await api("/api/pets/delete", {id: p.id}); editingPet = null; toast("Deleted"); await loadSettings(); refresh(); }); };
+  $("pet-editor").scrollIntoView({behavior: "smooth", block: "nearest"});
+}
+function reminderEditor(s) {
+  const r = s.reminders.find((x) => x.id === editingRem) || {kind: "vaccination", repeat_days: 365, pet_id: s.monitored_pet, due: new Date().toISOString().slice(0, 10)};
+  const isNew = !r.id;
+  $("rem-editor").innerHTML = `<form class="card editor" id="rem-form">
+    <div class="row between"><h3>${isNew ? "New reminder" : "Edit reminder"}</h3><button type="button" class="link" id="rem-cancel">Close</button></div>
+    <div class="grid"><div><label for="rp">Pet</label><select id="rp">${s.pets.map((x) => `<option value="${x.id}" ${x.id === r.pet_id ? "selected" : ""}>${AVATARS[x.avatar]} ${esc(x.name)}</option>`).join("")}</select></div>
+      <div><label for="rk">Type</label><select id="rk">${Object.entries(KINDS).map(([k, [e, n]]) => `<option value="${k}" ${k === r.kind ? "selected" : ""}>${e} ${n}</option>`).join("")}</select></div></div>
+    <label for="rt">Title</label><input id="rt" value="${esc(r.title || KINDS[r.kind][1])}" maxlength="60" required>
+    <div class="grid"><div><label for="rd">Due date</label><input id="rd" type="date" value="${esc(r.due)}" required></div>
+      <div><label for="rr">Repeat</label><select id="rr">${Object.entries(REPEATS).map(([d, n]) => `<option value="${d}" ${+d === r.repeat_days ? "selected" : ""}>${n}</option>`).join("")}</select></div></div>
+    <label for="rn">Notes</label><textarea id="rn" maxlength="200" placeholder="Clinic, dose, brand…">${esc(r.notes)}</textarea>
+    <p class="muted small" style="margin-top:8px">On the due day you get an alert here${status && status.telegram_configured ? " and on Telegram" : ""} (after 9 am). "Done" moves repeating reminders to their next date.</p>
+    <div class="actions"><button>Save</button>${isNew ? "" : '<button type="button" class="danger" id="rem-delete">Delete</button>'}</div>
+  </form>`;
+  $("rk").onchange = () => { const t = $("rt"); if (!t.value || Object.values(KINDS).some(([, n]) => n === t.value)) t.value = KINDS[$("rk").value][1]; };
+  $("rem-cancel").onclick = () => { editingRem = null; loadSettings(); };
+  $("rem-form").onsubmit = (e) => { e.preventDefault(); guard(e.submitter, async () => {
+    await api("/api/reminders/save", {id: r.id, pet_id: $("rp").value, kind: $("rk").value, title: $("rt").value, due: $("rd").value, repeat_days: +$("rr").value, notes: $("rn").value});
+    editingRem = null; toast("Reminder saved ⏰"); await loadSettings(); refresh(); }); };
+  if ($("rem-delete")) $("rem-delete").onclick = (e) => { if (confirm("Delete this reminder?")) guard(e.target, async () => {
+    await api("/api/reminders/delete", {id: r.id}); editingRem = null; toast("Deleted"); await loadSettings(); refresh(); }); };
+  $("rem-editor").scrollIntoView({behavior: "smooth", block: "nearest"});
+}
 function mirrorStates() {
   const states = status ? status.mirror.states : [];
   const encryption = status ? `<p class="muted small">Encryption: ${esc(status.mirror.encryption)}</p>` : "";
@@ -399,25 +599,30 @@ async function loadSettings() {
   const s = settings, p = s.pet, t = s.telegram, n = s.notifications;
   const modeOptions = (current) => Object.entries(s.modes).map(([k, v]) => `<option value="${k}" ${k === current ? "selected" : ""}>${esc(v)}</option>`).join("");
   const bowls = Object.entries(s.sensors.mapping).filter(([, m]) => m === "eat" || m === "water");
-  const NOTE = {entrance: "Someone waiting at the door", access: "Unlock gesture detected", levels: "Food or water running low", sensors: "Sensor problems", baseline: "Unusual daily routine"};
+  const NOTE = {entrance: "Someone waiting at the door", access: "Unlock gesture detected", levels: "Food or water running low", sensors: "Sensor problems", baseline: "Unusual daily routine", reminders: "Care reminders due"};
   $("view").innerHTML = `
-    <h2>Pet</h2>
-    <form class="card" id="pet-form">
-      <div class="grid"><div><label for="pn">Name</label><input id="pn" value="${esc(p.name)}" required></div><div><label for="pa">Animal</label><input id="pa" value="${esc(p.animal)}"></div></div>
-      <div class="grid"><div><label for="ps">Usual sleep (h/day)</label><input id="ps" type="number" step="0.5" min="0.5" max="24" value="${p.baseline_sleep_hours}"></div>
-      <div><label for="pt">Usual litter visits/day</label><input id="pt" type="number" step="0.5" min="0.5" max="50" value="${p.baseline_toilet_visits}"></div></div>
-      <div class="actions"><button>Save pet</button></div>
-    </form>
+    <h2>My pets</h2>
+    <div class="pets">${s.pets.map((x) => `<button class="pet-card ${editingPet === x.id ? "selected" : ""}" data-pet="${x.id}">${avatar(x.avatar)}<b>${esc(x.name)}</b><span class="muted small">${x.id === s.monitored_pet ? "📡 Monitored" : esc(x.breed || x.animal || "")}</span></button>`).join("")}
+      <button class="pet-card add" data-pet="new">＋<br>Add pet</button></div>
+    <p class="muted small" style="margin:0 4px">📡 The sensors can't tell pets apart: live tracking, the wellness score and routine alerts follow the monitored pet.</p>
+    <div id="pet-editor"></div>
+
+    <h2>Care reminders</h2>
+    <div class="card">${remindersList(s)}
+      <div class="actions"><button class="ghost small" data-rem="new">＋ Add reminder</button></div></div>
+    <div id="rem-editor"></div>
 
     <h2>Food & water calibration</h2>
-    <div class="card">${bowls.length ? bowls.map(([id, mode]) => { const c = s.calibration[id] || {}; return `
-      <form class="cal" data-id="${id}" style="margin-bottom:14px">
-        <div class="row between"><h3>${esc(s.modes[mode])} · sensor ${id}</h3><span class="muted small">now: <span data-live="${id}">…</span></span></div>
-        <div class="grid"><div><label>Distance when full (cm)</label><input name="full" type="number" step="0.1" value="${c.full_cm ?? ""}"></div>
-        <div><label>Distance when empty (cm)</label><input name="empty" type="number" step="0.1" value="${c.empty_cm ?? ""}"></div></div>
-        <div class="actions"><button type="button" class="ghost small" data-use="full">Use now as full</button><button type="button" class="ghost small" data-use="empty">Use now as empty</button><button class="small">Save</button></div>
-      </form>`; }).join("") : '<p class="muted">No sensor is assigned to food or water.</p>'}
-      <p class="muted small">Fill the bowl and tap "Use now as full", then empty it and tap "Use now as empty".</p></div>
+    ${bowls.length ? `<form class="card" id="cal-form">${bowls.map(([id, mode]) => { const c = s.calibration[id] || {}; return `
+      <div class="cal-bowl" data-id="${id}">
+        <div class="row between"><h3>${STATION[mode]} ${esc(s.modes[mode])} · sensor ${id}</h3><span class="muted small">now: <span data-live="${id}">…</span></span></div>
+        <div class="grid">
+          <div><label for="full-${id}">When full (cm)</label><div class="cal-row"><input id="full-${id}" name="full" type="number" step="0.1" min="0.1" max="400" value="${c.full_cm ?? ""}" placeholder="—"><button type="button" class="ghost" data-use="full">Use now</button></div></div>
+          <div><label for="empty-${id}">When empty (cm)</label><div class="cal-row"><input id="empty-${id}" name="empty" type="number" step="0.1" min="0.1" max="400" value="${c.empty_cm ?? ""}" placeholder="—"><button type="button" class="ghost" data-use="empty">Use now</button></div></div>
+        </div>
+      </div>`; }).join("")}
+      <p class="muted small" style="margin-top:12px">Fill the bowl and tap "Use now" under full, then empty it and tap "Use now" under empty. Leave both blank to skip a bowl.</p>
+      <div class="actions"><button>Save calibration</button></div></form>` : '<div class="card"><p class="muted">No sensor is assigned to food or water.</p></div>'}
 
     <h2>Notifications</h2>
     <div class="card">${Object.keys(n).map((k) => `<label class="check">${esc(NOTE[k] || k)}<input type="checkbox" data-note="${k}" ${n[k] ? "checked" : ""}></label>`).join("")}</div>
@@ -441,6 +646,26 @@ async function loadSettings() {
       </fieldset>
     </form>
 
+    <h2>Sensor locations</h2>
+    <form class="card" id="layout-form">
+      <p class="muted small">Where each sensor sits on the tray, so the 3D view and the desktop dashboard match the real build.
+        Update this whenever a sensor is moved. Left/right 0-10, front/back 0 (front) to 15 (back).</p>
+      ${["1", "2", "3", "4", "5"].map((id) => { const place = s.layout[id], role = id === "5" ? "🚪 Entrance" : `${STATION[s.sensors.mapping[id]]} ${esc(s.modes[s.sensors.mapping[id]])}`; return `
+      <div class="cal-bowl" data-sensor="${id}">
+        <div class="row between"><h3>Sensor ${id} · ${role}</h3><span class="muted small">TRIG ${s.pins[id][0]} / ECHO ${s.pins[id][1]}</span></div>
+        <label>Location note</label><input name="note" maxlength="60" value="${esc(place.note)}" placeholder="e.g. Left of the food bowl">
+        <div class="grid">
+          <div><label>Left ↔ right (0-10)</label><input name="x" type="number" step="any" min="-0.5" max="10.5" value="${place.x}" required></div>
+          <div><label>Front ↔ back (0-15)</label><input name="z" type="number" step="any" min="-0.5" max="15.5" value="${place.z}" required></div>
+        </div>
+        <div class="grid">
+          <div><label>Facing</label><select name="facing">${FACINGS.map(([deg, name]) => `<option value="${deg}" ${Math.round(place.facing / 45) * 45 === deg || (deg === 180 && Math.abs(place.facing) === 180) ? "selected" : ""}>${name}</option>`).join("")}</select></div>
+          <div><label>Mount</label><select name="mount"><option value="raised" ${place.mount === "raised" ? "selected" : ""}>Raised</option><option value="floor" ${place.mount === "floor" ? "selected" : ""}>Floor</option></select></div>
+        </div>
+      </div>`; }).join("")}
+      <div class="actions"><button>Save locations</button></div>
+    </form>
+
     <h2>Developer dashboard</h2>
     <form class="card" id="mirror-form">
       ${s.dashboard_source ? '<p class="muted small">The desktop GUI is already connected. Additional dashboard mirroring is disabled in this mode.</p>' : ''}
@@ -461,18 +686,25 @@ async function loadSettings() {
     </form>
     <p class="muted small" style="margin:14px 4px">Hub ${status ? (status.link.connected ? "connected to the sensor script" : "waiting for the sensor script") : ""}.</p>`;
 
-  $("pet-form").onsubmit = (e) => { e.preventDefault(); guard(e.submitter, async () => {
-    await api("/api/settings/pet", {name: $("pn").value, animal: $("pa").value, baseline_sleep_hours: +$("ps").value, baseline_toilet_visits: +$("pt").value});
-    toast("Pet saved"); refresh(); }); };
-  document.querySelectorAll("form.cal").forEach((f) => {
-    f.querySelectorAll("[data-use]").forEach((b) => b.onclick = () => {
-      const z = status && status.zones.find((x) => x.sensor_id === f.dataset.id);
-      if (!z || !z.online) return toast("No live reading from this sensor");
-      f.elements[b.dataset.use].value = z.distance_cm.toFixed(1);
-    });
-    f.onsubmit = (e) => { e.preventDefault(); guard(e.submitter, async () => {
-      await api("/api/settings/calibration", {sensor_id: f.dataset.id, full_cm: +f.elements.full.value, empty_cm: +f.elements.empty.value}); toast("Calibration saved"); }); };
-  });
+  document.querySelectorAll("[data-pet]").forEach((b) => b.onclick = () => { editingPet = b.dataset.pet; editingRem = null; loadSettings(); });
+  document.querySelectorAll("[data-rem]").forEach((b) => b.onclick = () => { editingRem = b.dataset.rem; editingPet = null; loadSettings(); });
+  document.querySelectorAll("[data-rem-done]").forEach((b) => b.onclick = () => guard(b, async () => { await api("/api/reminders/done", {id: b.dataset.remDone}); toast("Done 🎉"); loadSettings(); refresh(); }));
+  if (editingPet) petEditor(s);
+  if (editingRem) reminderEditor(s);
+  document.querySelectorAll(".cal-bowl").forEach((bowl) => bowl.querySelectorAll("[data-use]").forEach((b) => b.onclick = () => {
+    const z = status && status.zones.find((x) => x.sensor_id === bowl.dataset.id);
+    if (!z || !z.online) return toast("No live reading from this sensor");
+    bowl.querySelector(`[name=${b.dataset.use}]`).value = z.distance_cm.toFixed(1);
+  }));
+  if ($("cal-form")) $("cal-form").onsubmit = (e) => { e.preventDefault(); guard(e.submitter, async () => {
+    const bowls = [...document.querySelectorAll(".cal-bowl")].map((b) => ({id: b.dataset.id, name: b.querySelector("h3").textContent,
+      full: b.querySelector("[name=full]").value, empty: b.querySelector("[name=empty]").value}));
+    const filled = bowls.filter((b) => b.full !== "" || b.empty !== "");
+    const half = filled.find((b) => b.full === "" || b.empty === "");
+    if (half) throw new Error(`${half.name}: fill in both distances, or leave both blank`);
+    if (!filled.length) throw new Error("Enter the full and empty distances first");
+    for (const b of filled) await api("/api/settings/calibration", {sensor_id: b.id, full_cm: +b.full, empty_cm: +b.empty});
+    toast(`Calibration saved (${filled.length} bowl${filled.length > 1 ? "s" : ""})`); refresh(); }); };
   document.querySelectorAll("[data-note]").forEach((c) => c.onchange = () => api("/api/settings/notifications", {[c.dataset.note]: c.checked}).then(() => toast("Saved")).catch((e) => toast(e.message)));
   $("tg-form").onsubmit = (e) => { e.preventDefault(); guard(e.submitter, async () => {
     await api("/api/settings/telegram", {enabled: $("te").checked, chat_id: $("tc").value, token: $("tt").value}); $("tt").value = ""; toast("Telegram saved"); loadSettings(); }); };
@@ -481,6 +713,14 @@ async function loadSettings() {
     const mapping = {}, thresholds = {};
     for (const id of ["1", "2", "3", "4"]) { mapping[id] = f.elements["m" + id].value; thresholds[id] = +f.elements["t" + id].value; }
     await api("/api/settings/sensors", {mapping, thresholds}); toast("Saved · the Pi will apply it in a moment"); loadSettings(); }); };
+  $("layout-form").onsubmit = (e) => { e.preventDefault(); guard(e.submitter, async () => {
+    const layout = Object.fromEntries([...document.querySelectorAll("[data-sensor]")].map((b) => {
+      const v = (name) => b.querySelector(`[name=${name}]`).value;
+      // Keep the exact saved angle unless a different direction was picked.
+      const facing = +v("facing"), saved = settings.layout[b.dataset.sensor].facing;
+      return [b.dataset.sensor, {x: +v("x"), z: +v("z"), facing: Math.round(saved / 45) * 45 === facing ? saved : facing, mount: v("mount"), note: v("note")}];
+    }));
+    await api("/api/settings/layout", {layout}); toast("Locations saved 📍"); await loadSettings(); refresh(); }); };
   $("mirror-form").onsubmit = (e) => { e.preventDefault(); guard(e.submitter, async () => {
     await api("/api/settings/mirror", {hosts: $("mh").value, port: +$("mp").value}); toast($("mh").value.trim() ? "Saved · connecting to the laptops" : "Dashboard copy turned off"); refresh(); }); };
   $("pw-form").onsubmit =(e) => { e.preventDefault(); guard(e.submitter, async () => {

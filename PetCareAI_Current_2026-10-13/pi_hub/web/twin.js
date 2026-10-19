@@ -4,24 +4,27 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // ---------------------------------------------------------------------------
-// EDIT TO MATCH THE BUILD. Sketch coordinates: x 0 (left) to 10 (right), z 15 (back/top) to 0 (front/bottom).
-// SENSORS: mount positions from the digital twin's config.json (height, yaw and tilt are estimates).
-// SPOTS: where the pet is drawn when that sensor's station is occupied.
+// Sensor positions come from the hub (phone app: Settings -> Sensor locations). Sketch coordinates:
+// x 0 (left) to 10 (right), z 15 (back/top) to 0 (front/bottom); facing in degrees, 0 = toward the back.
+// DEFAULT_LAYOUT is only used until the first status arrives. The pet is drawn just in front of each sensor.
 // ---------------------------------------------------------------------------
-const SENSORS = {
-  1: {x: 1.15, z: 14.0, height: .55, yaw: Math.PI, tilt: 0, mount: 'floor'},
-  2: {x: 8.5, z: 15.12, height: 3.3, yaw: Math.PI, tilt: .65, mount: 'raised'},
-  3: {x: 10.15, z: 4.75, height: 3.3, yaw: -Math.PI / 2, tilt: .65, mount: 'raised'},
-  4: {x: 10.15, z: 1.15, height: 3.3, yaw: -Math.PI / 2, tilt: .65, mount: 'raised'},
-  5: {x: 0.0, z: 0.2, height: 3.0, yaw: .65, tilt: .65, mount: 'raised'},
+const DEFAULT_LAYOUT = {
+  1: {x: 1.15, z: 14.0, facing: 180, mount: 'floor'},
+  2: {x: 8.5, z: 15.12, facing: 180, mount: 'raised'},
+  3: {x: 10.15, z: 4.75, facing: -90, mount: 'raised'},
+  4: {x: 10.15, z: 1.15, facing: -90, mount: 'raised'},
+  5: {x: 0.0, z: 0.2, facing: 37, mount: 'raised'},
 };
-const SPOTS = {1: {x: 1.3, z: 11.6}, 2: {x: 8.35, z: 13.25}, 3: {x: 6.9, z: 3.9}, 4: {x: 8.0, z: 1.25}, 5: {x: 1.35, z: 1.35}};
+const SPOT_DISTANCE = 1.9;
+const SPOTS = {};
 const FOOD_BOWL = {x: 1.3, z: 12.9};
 const WATER_BOTTLE = {x: 8.14, z: 3.75};
 const ROLE = {eat: ['Food', '#f4c36a'], sleep: ['Bed', '#43cbb8'], water: ['Water', '#72a9ff'], toilet: ['Litter', '#c9a0ff'], entrance: ['Entrance', '#ff9f6b']};
 
 let built = false, running = false, frameId = 0, observer = null, host = null;
-let renderer, scene, camera, orbit, root, pet, bottleWater, bowlFood, petMaterials;
+let renderer, scene, camera, orbit, root, pet, bottleWater, bowlFood, petMaterials, kit;
+let layoutKey = '';
+const sensorGroups = {};
 const markers = {}, rings = {};
 let petOpacity = 0, petTarget = null, petAlpha = 0, transition = null, entranceActive = false;
 const clock = new THREE.Clock();
@@ -29,7 +32,7 @@ const clock = new THREE.Clock();
 const mat = (color, opts = {}) => new THREE.MeshStandardMaterial({color, roughness: .87, ...opts});
 
 function build() {
-  scene = new THREE.Scene(); scene.background = new THREE.Color('#152333');
+  scene = new THREE.Scene(); scene.background = new THREE.Color('#2b2147');
   camera = new THREE.PerspectiveCamera(43, 1, .1, 140);
   renderer = new THREE.WebGLRenderer({antialias: true});
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -98,32 +101,15 @@ function build() {
   bowlFood = cylinder(FOOD_BOWL.x, .08, FOOD_BOWL.z, .54, .54, 1, mat('#9b6a3c'));
   bowlFood.geometry.translate(0, .5, 0);
 
-  // Sensors: twin stands, PCB, two transducers, a status LED and a label.
-  for (const [n, s] of Object.entries(SENSORS)) {
-    const g = new THREE.Group(); g.position.set(s.x, 0, s.z); g.rotation.y = s.yaw; root.add(g);
-    const part = (geometry, material, x, y, z, parent = g) => { const o = add(new THREE.Mesh(geometry, material), parent); o.position.set(x, y, z); return o; };
-    if (s.mount === 'raised') {
-      for (const x of [-.58, .58]) part(new THREE.CylinderGeometry(.035, .035, s.height, 8), mat('#cbb286'), x, s.height / 2, 0);
-      part(new THREE.BoxGeometry(1.62, .94, .07), cardboard, 0, s.height, -.11);
-    } else part(new THREE.BoxGeometry(1.60, .90, .08), cardboard, 0, .55, -.12);
-    const head = new THREE.Group(); head.position.y = s.height; head.rotation.x = s.tilt; g.add(head);
-    part(new THREE.BoxGeometry(.88, .40, .075), mat('#2169a2'), 0, 0, 0, head);
-    part(new THREE.BoxGeometry(1.40, .72, .10), mat('#e6e2cc'), 0, 0, -.09, head);
-    for (const x of [-.26, .26]) {
-      part(new THREE.CylinderGeometry(.17, .17, .19, 24), chrome, x, 0, .13, head).rotation.x = Math.PI / 2;
-      part(new THREE.CircleGeometry(.125, 24), mat('#303a41'), x, 0, .231, head);
-    }
-    const led = mat('#66807a', {emissive: '#000000'});
-    part(new THREE.SphereGeometry(.07, 12, 10), led, .6, .24, .01, head);
-    markers[n] = {led, label: textLabel('S' + n, s.x, s.z, '#ffffff', s.height + .72), text: ''};
-  }
+  kit = {add, cardboard, chrome};
 
-  // One ring per pet spot, coloured by what that sensor is assigned to.
-  for (const [n, p] of Object.entries(SPOTS)) {
+  // One ring per pet spot, coloured by what that sensor is assigned to; moved by placeSensors().
+  for (const n of Object.keys(DEFAULT_LAYOUT)) {
     const ring = new THREE.Mesh(new THREE.RingGeometry(.73, .82, 48),
       new THREE.MeshBasicMaterial({color: '#ffffff', side: THREE.DoubleSide, transparent: true, opacity: .55, depthWrite: false}));
-    ring.rotation.x = -Math.PI / 2; ring.position.set(p.x, .04, p.z); root.add(ring); rings[n] = ring;
+    ring.rotation.x = -Math.PI / 2; ring.position.y = .04; root.add(ring); rings[n] = ring;
   }
+  placeSensors(DEFAULT_LAYOUT);
 
   // Exactly one pet; all parts share one opacity.
   pet = new THREE.Group(); root.add(pet);
@@ -141,6 +127,36 @@ function build() {
 
   view('perspective');
   built = true;
+}
+
+/** (Re)build the five sensor stands at their configured positions and move each pet spot in front of them. */
+function placeSensors(layout) {
+  const {add, cardboard, chrome} = kit;
+  for (const [n, place] of Object.entries(layout)) {
+    if (sensorGroups[n]) { root.remove(sensorGroups[n]); scene.remove(markers[n].label); }
+    const yaw = place.facing * Math.PI / 180, floor = place.mount === 'floor';
+    const s = {x: place.x, z: place.z, yaw, height: floor ? .55 : n === '5' ? 3.0 : 3.3, tilt: floor ? 0 : .65};
+    const g = new THREE.Group(); g.position.set(s.x, 0, s.z); g.rotation.y = s.yaw; root.add(g); sensorGroups[n] = g;
+    const part = (geometry, material, x, y, z, parent = g) => { const o = add(new THREE.Mesh(geometry, material), parent); o.position.set(x, y, z); return o; };
+    if (!floor) {
+      for (const x of [-.58, .58]) part(new THREE.CylinderGeometry(.035, .035, s.height, 8), mat('#cbb286'), x, s.height / 2, 0);
+      part(new THREE.BoxGeometry(1.62, .94, .07), cardboard, 0, s.height, -.11);
+    } else part(new THREE.BoxGeometry(1.60, .90, .08), cardboard, 0, .55, -.12);
+    const head = new THREE.Group(); head.position.y = s.height; head.rotation.x = s.tilt; g.add(head);
+    part(new THREE.BoxGeometry(.88, .40, .075), mat('#2169a2'), 0, 0, 0, head);
+    part(new THREE.BoxGeometry(1.40, .72, .10), mat('#e6e2cc'), 0, 0, -.09, head);
+    for (const x of [-.26, .26]) {
+      part(new THREE.CylinderGeometry(.17, .17, .19, 24), chrome, x, 0, .13, head).rotation.x = Math.PI / 2;
+      part(new THREE.CircleGeometry(.125, 24), mat('#303a41'), x, 0, .231, head);
+    }
+    const led = mat('#66807a', {emissive: '#000000'});
+    part(new THREE.SphereGeometry(.07, 12, 10), led, .6, .24, .01, head);
+    markers[n] = {led, label: textLabel('S' + n, s.x, s.z, '#ffffff', s.height + .72), text: ''};
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    SPOTS[n] = {x: clamp(s.x + Math.sin(yaw) * SPOT_DISTANCE, .7, 9.3), z: clamp(s.z + Math.cos(yaw) * SPOT_DISTANCE, .7, 14.3)};
+    rings[n].position.x = SPOTS[n].x; rings[n].position.z = SPOTS[n].z;
+  }
+  petTarget = null;  // re-place the pet at its (possibly moved) spot on the next update
 }
 
 function textLabel(text, x, z, color, y) {
@@ -218,6 +234,10 @@ function placePet(spot, alpha) {
 /** Apply one /api/status snapshot. Returns a short description of what the view shows. */
 export function update(status) {
   if (!built) return '';
+  if (status.layout && JSON.stringify(status.layout) !== layoutKey) {
+    layoutKey = JSON.stringify(status.layout);
+    placeSensors(status.layout);
+  }
   const zones = Object.fromEntries(status.zones.map((z) => [z.sensor_id, z]));
   for (const n of ['1', '2', '3', '4']) {
     const z = zones[n], [name, colour] = ROLE[z.mode];

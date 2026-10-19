@@ -102,6 +102,14 @@ class LevelCalibration(Card):
         for sensor_id, (card, *_fields) in self.fields.items():
             card.setVisible(self.hub.mapping[sensor_id] in {"eat", "water"})
 
+    def reload(self):
+        """Show calibration values after the Pi hub updated them."""
+        for sensor_id, (card, full, empty, capacity, linear) in self.fields.items():
+            saved = self.hub.level_calibration.get(sensor_id, {})
+            full.setValue(saved.get("full_cm", 0))
+            empty.setValue(saved.get("empty_cm", 0))
+        self.refresh()
+
     def save(self):
         values = dict(self.hub.level_calibration)
         for sensor_id, (card, full, empty, capacity, linear) in self.fields.items():

@@ -59,6 +59,8 @@ class PetProfilePage(Page):
         baseline.box.addWidget(label("Use a representative multi-day observation period when setting these values.", "muted", True))
         row.addWidget(baseline)
         self.box.addLayout(row)
+        self.sync_note = label("", "muted", True)
+        self.box.addWidget(self.sync_note)
         self.feedback = label("", "muted", True)
         self.box.addWidget(self.feedback)
         actions = QHBoxLayout()
@@ -66,6 +68,19 @@ class PetProfilePage(Page):
         actions.addWidget(button("Save profile", self.save, True))
         self.box.addLayout(actions)
         self.box.addStretch()
+
+    def reload(self, state):
+        """Show the pet details synced from the Pi hub."""
+        profile = self.c.profile
+        for key, field in self.fields.items():
+            value = getattr(profile, key)
+            field.setText(value) if isinstance(field, QLineEdit) else field.setValue(value)
+        self.avatar.setText(profile.name[:1].upper() or "?")
+        if state:
+            sex = {"female": "Girl", "male": "Boy"}.get(state["sex"], "not set")
+            birthday = state["birthday"] or "not set"
+            self.sync_note.setText(f"Synced from the Pi hub at {state['time']} · Sex: {sex} · Birthday: {birthday} · "
+                                   f"{state['pets_total']} pet(s) on the hub; this is the monitored one. Edit pets in the phone app.")
 
     def refresh_avatar(self):
         # Settings already contains the selected theme before the shell applies it.

@@ -61,6 +61,12 @@ class MainWindow(QMainWindow):
                       HubPage(self.hub, self.show_movement, self.movement),
                       SecurityInspector(self.movement.receiver)]
         self.pages[1].bind_live_inputs(self.hub, self.movement)
+        from pet_monitoring.services.hub_sync import HubSync
+        self.hub_sync = HubSync(controller, self.hub, self.movement.receiver, self)
+        self.hub_sync.synced.connect(lambda: (self.pages[7].sync_from_hub(self.hub_sync.state), self.pages[5].reload(self.hub_sync.state)))
+        self.pages[7].sync_from_hub(self.hub_sync.state)
+        if self.hub_sync.state:
+            self.pages[5].reload(self.hub_sync.state)
         self.pages[1].heading.setText("Live Sensors")
         for index, title in ((0, "Pet activity overview"), (2, "Activity Analysis"), (3, "Sleep & toilet history")):
             self.pages[index].live_heading = title
