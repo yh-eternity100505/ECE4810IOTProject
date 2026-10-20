@@ -48,6 +48,7 @@ p { margin: 0; }
 .small { font-size: 13px; }
 .card { background: var(--surface); border-radius: 22px; padding: 16px; box-shadow: var(--shadow); }
 .card + .card { margin-top: 12px; }
+.grid > .card, .pets > .pet-card { margin-top: 0; }  /* tiles in a row line up */
 .row { display: flex; align-items: center; gap: 10px; }
 .between { justify-content: space-between; }
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -178,6 +179,27 @@ nav button[aria-current="page"] svg { background: var(--accent-soft); }
 .twin-tools label { margin: 0 0 0 auto; display: flex; gap: 6px; align-items: center; color: var(--text); font-size: 13px; }
 .twin-tools input[type=checkbox] { width: 18px; height: 18px; }
 .error { color: var(--bad); font-size: 14px; margin-top: 10px; min-height: 1em; }
+.error.step { color: var(--muted); }
+/* Settings: one collapsible card per section */
+details.section { background: var(--surface); border-radius: 22px; box-shadow: var(--shadow); margin-top: 12px; overflow: hidden; }
+details.section > summary { list-style: none; display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; }
+details.section > summary::-webkit-details-marker { display: none; }
+.sec-icon { width: 42px; height: 42px; border-radius: 14px; background: var(--accent-soft); display: grid; place-items: center; font-size: 21px; flex: none; }
+.sec-title { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.sec-title b { font-size: 16px; }
+.sec-title .hint { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sec-title .hint.warn { color: var(--warn); font-weight: 700; }
+.chev { font-size: 24px; line-height: 1; color: var(--muted); transition: transform .2s; }
+details[open] > summary .chev { transform: rotate(90deg); }
+details[open] > summary { border-bottom: 1px solid var(--line); }
+.sec-body { padding: 14px 16px 16px; }
+.sec-body > .card { box-shadow: none; background: none; padding: 0; border-radius: 0; }
+.sec-body > .card + .card, .sec-body > * + .card { margin-top: 12px; }
+.sec-body .editor { box-shadow: none; padding: 14px; border-radius: 18px; }
+.settings-title { margin: 6px 4px 2px; }
+.cipher { font: 12px/1.5 ui-monospace, Menlo, Consolas, monospace; word-break: break-all; background: var(--surface-2); border-radius: 12px; padding: 10px; margin-top: 6px; color: var(--text); }
+.sec-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; text-align: center; }
+.sec-grid div { background: var(--surface-2); border-radius: 14px; padding: 10px 4px; } .sec-grid b { display: block; font-size: 20px; }
 </style>
 </head>
 <body>
@@ -190,19 +212,20 @@ nav button[aria-current="page"] svg { background: var(--accent-soft); }
     <label for="lp">Password</label><input id="lp" type="password" autocomplete="current-password" required>
     <div class="actions"><button type="submit" style="width:100%">Sign in</button></div>
     <p class="error" id="login-error"></p>
+    <p class="muted small" style="margin-top:6px">🔐 Your password never leaves this phone. It is checked with a challenge–response, then everything is encrypted with EDC + HMAC.</p>
   </form>
 </section>
 
 <div id="app" class="hidden">
   <main>
     <div class="top"><div><p class="hello" id="hello">Hello!</p><h1 id="title">PetCare AI</h1></div><span class="pill" id="link-pill">…</span></div>
-    <div id="password-banner" class="banner hidden">You're using the default password. Change it in Settings → Account to keep your pet's data private.</div>
     <div id="view"></div>
   </main>
   <nav><div class="inner" id="nav"></div></nav>
 </div>
 <div class="toast" id="toast"></div>
 
+<script src="/edc.js"></script>
 <script>
 "use strict";
 const $ = (id) => document.getElementById(id);
@@ -245,13 +268,27 @@ const CONDITIONS = {level: "A bowl is running low", zone_silent: "A sensor isn't
 let tab = "home", status = null, settings = null, accessKey = "";
 
 // ---------- helpers ----------
+// After sign-in every request and response is an EDC_PACKET (EDC cipher + HMAC-SHA256, timestamp, one-time nonce).
+// The session keys were derived on this phone at login and kept for this tab only.
+let channel = null;
+try { const saved = sessionStorage.getItem("petcare_channel"); if (saved) channel = EDC.Channel.load(saved); } catch { channel = null; }
+function forgetChannel() { channel = null; try { sessionStorage.removeItem("petcare_channel"); } catch {} }
 async function api(path, body) {
-  const options = body === undefined ? {} : {method: "POST", headers: {"Content-Type": "application/json", "X-PetCare": "1"}, body: JSON.stringify(body)};
-  const response = await fetch(path, {credentials: "same-origin", ...options});
-  const data = await response.json().catch(() => ({}));
-  if (response.status === 401 && path !== "/api/login") { showLogin(); throw new Error("Please sign in"); }
-  if (!response.ok) throw new Error(data.error || "Something went wrong");
-  return data;
+  if (path === "/api/session") return (await fetch(path, {credentials: "same-origin"})).json();
+  if (!channel) { showLogin(); throw new Error("Please sign in"); }
+  const request = channel.encode({type: "API_REQUEST", method: body === undefined ? "GET" : "POST", path, body});
+  const response = await fetch("/api/secure", {method: "POST", credentials: "same-origin",
+    headers: {"Content-Type": "application/json", "X-PetCare": "1"}, body: JSON.stringify(request)});
+  const packet = await response.json().catch(() => ({}));
+  if (response.status === 401) { forgetChannel(); showLogin(); throw new Error("Please sign in"); }
+  if (!response.ok) throw new Error(packet.error || "Something went wrong");
+  const reply = channel.decode(packet);
+  const exchange = {path: path.split("?")[0], time: new Date(), request, response: packet};
+  channel.stats.last = exchange;
+  if (exchange.path !== "/api/status") channel.stats.lastAction = exchange;
+  if (reply.status === 401) { forgetChannel(); showLogin(); throw new Error("Please sign in"); }
+  if (reply.status >= 400) throw new Error((reply.data && reply.data.error) || "Something went wrong");
+  return reply.data;
 }
 function toast(text) { const t = $("toast"); t.textContent = text; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2600); }
 function ago(iso) {
@@ -280,8 +317,12 @@ $("login-form").addEventListener("submit", async (event) => {
   $("login-error").textContent = "";
   const button = event.submitter || event.target.querySelector("button");
   button.disabled = true;
-  try { await api("/api/login", {username: $("lu").value, password: $("lp").value}); $("lp").value = ""; showApp(); }
-  catch (e) { $("login-error").textContent = e.message; }
+  const note = $("login-error");
+  try {
+    channel = await EDC.login($("lu").value.trim(), $("lp").value, (step) => { note.textContent = step; note.classList.add("step"); });
+    try { sessionStorage.setItem("petcare_channel", channel.save()); } catch {}
+    $("lp").value = ""; note.textContent = ""; showApp();
+  } catch (e) { note.classList.remove("step"); note.textContent = e.message; }
   finally { button.disabled = false; }
 });
 
@@ -305,13 +346,13 @@ async function refresh() {
   const live = status.link.configured;
   pill.textContent = live ? "● Live" : status.link.connected ? "Connecting…" : "Offline";
   pill.className = "pill " + (live ? "ok" : status.link.connected ? "warn" : "");
-  $("password-banner").classList.toggle("hidden", !status.must_change_password);
   const badge = $("badge");
   badge.textContent = status.alerts.unread; badge.classList.toggle("hidden", !status.alerts.unread);
   if (tab === "home") renderHome();
   if (tab === "twin") updateTwin();
   if (tab === "access") renderAccess();
   if (tab === "settings" && $("mirror-state")) $("mirror-state").innerHTML = mirrorStates();
+  if (tab === "settings" && $("sec-panel") && !document.activeElement?.closest?.("#sec-panel")) securityPanel();
   if (tab === "settings") document.querySelectorAll("[data-live]").forEach((el) => {
     const z = status.zones.find((x) => x.sensor_id === el.dataset.live);
     el.textContent = z && z.online ? `${z.distance_cm.toFixed(1)} cm` : "no reading";
@@ -520,8 +561,75 @@ function renderAccess() {
   if ($("verify")) $("verify").onclick = (e) => guard(e.target, async () => { const r = await api("/api/access/verify", {code: $("otp").value}); toast(r.ok ? "Access granted" : "Code not accepted"); accessKey = ""; await refresh(); });
 }
 
+// ---------- security panel (for demonstrating the EDC channel) ----------
+function securityPanel(server) {
+  const el = $("sec-panel");
+  if (!el || !channel) return;
+  if (server) el.dataset.server = JSON.stringify(server);
+  const hub = el.dataset.server ? JSON.parse(el.dataset.server) : null, st = channel.stats, x = st.lastAction || st.last;
+  const packet = (label, p) => `<label>${label} · ${p.ciphertext.length.toLocaleString()} characters</label>
+    <div class="cipher">${esc(p.ciphertext.slice(0, 140))}…</div><div class="cipher">HMAC-SHA256 tag: ${esc(p.tag)}</div>`;
+  el.innerHTML = `
+    <p class="small"><b>Cipher:</b> EDC (keyed 6×6 matrix · coordinate feedback · 4-token permutation) + HMAC-SHA256, encrypt-then-MAC.</p>
+    <p class="small" style="margin-top:6px"><b>Keys:</b> derived on this phone at sign-in from your password hash and two one-time nonces (challenge–response); never sent. Every packet carries a timestamp and a one-time nonce, so replays are rejected.</p>
+    <div class="sec-grid"><div><b>${st.sent}</b><span class="muted small">sent</span></div><div><b>${st.verified}</b><span class="muted small">verified</span></div><div><b>${st.rejected}</b><span class="muted small">rejected</span></div></div>
+    ${hub && hub.server ? `<p class="muted small" style="margin-top:8px">Hub: ${hub.server.requests} decrypted · ${hub.server.rejected} rejected · session since ${esc(hub.server.started.replace("T", " "))}</p>` : ""}
+    ${x ? `<p class="small" style="margin-top:12px"><b>Last exchange:</b> ${esc(x.path)} at ${x.time.toLocaleTimeString()} · HMAC verified ✓</p>
+      ${packet("Request sent (encrypted)", x.request)}${packet("Response received (encrypted)", x.response)}` : ""}
+    <div class="actions"><button class="ghost small" id="sec-refresh">Refresh</button></div>`;
+  $("sec-refresh").onclick = (e) => guard(e.target, async () => { securityPanel(await api("/api/security")); });
+}
+
 // ---------- settings ----------
 let editingPet = null, editingRem = null;
+const SECTION_ICONS = {"My pets": "🐾", "Care reminders": "⏰", "Food & water calibration": "🥣", "Notifications": "🔔", "Telegram": "✈️",
+  "Sensors": "📡", "Sensor locations": "📍", "Developer dashboard": "💻", "Encrypted channel": "🔐", "Account": "👤"};
+let openSections;
+try { openSections = new Set(JSON.parse(localStorage.getItem("petcare_open_sections") || '["My pets"]')); } catch { openSections = new Set(["My pets"]); }
+function sectionHint(title, s) {
+  const today = new Date(new Date().toDateString());
+  switch (title) {
+    case "My pets": { const m = s.pets.find((x) => x.id === s.monitored_pet); return [`${s.pets.length} pet${s.pets.length === 1 ? "" : "s"} · ${m ? m.name : "?"} monitored`]; }
+    case "Care reminders": {
+      const overdue = s.reminders.filter((r) => new Date(r.due + "T00:00") < today).length;
+      return overdue ? [`${overdue} overdue`, true] : [s.reminders.length ? `${s.reminders.length} upcoming` : "None yet"];
+    }
+    case "Food & water calibration": {
+      const bowls = Object.entries(s.sensors.mapping).filter(([, m]) => m === "eat" || m === "water"), done = bowls.filter(([id]) => s.calibration[id]).length;
+      return done < bowls.length ? [`${bowls.length - done} bowl${bowls.length - done > 1 ? "s" : ""} need calibrating`, true] : [`${done} of ${bowls.length} calibrated`];
+    }
+    case "Notifications": { const v = Object.values(s.notifications); return [`${v.filter(Boolean).length} of ${v.length} on`]; }
+    case "Telegram": return [s.telegram.enabled && s.telegram.has_token ? "On" : "Off"];
+    case "Sensors": return [Object.entries(s.sensors.mapping).map(([id, m]) => `S${id} ${s.modes[m].split(" ")[0]}`).join(" · ") + " · S5 Entrance"];
+    case "Sensor locations": return ["Where each sensor sits (3D view)"];
+    case "Developer dashboard": {
+      const st = status ? status.mirror.states : [];
+      return [s.mirror.hosts.length ? `${s.mirror.hosts.length} laptop${s.mirror.hosts.length > 1 ? "s" : ""} · ${st.filter((x) => x.live).length} live` : "Off"];
+    }
+    case "Encrypted channel": return [channel ? `EDC + HMAC · ${channel.stats.verified} packets verified` : "EDC + HMAC"];
+    case "Account": return status && status.must_change_password ? ["Default password: change it", true] : ["Password and sign out"];
+  }
+  return [""];
+}
+/** Turn each <h2> section of the Settings page into a collapsible card; remembers which are open. */
+function collapseSections(s) {
+  const view = $("view");
+  for (const h2 of [...view.querySelectorAll(":scope > h2")]) {
+    const title = h2.textContent.replace("🔐", "").trim(), [hint, warn] = sectionHint(title, s);
+    const details = document.createElement("details");
+    details.className = "section"; details.dataset.section = title;
+    details.open = openSections.has(title) || (title === "My pets" && !!editingPet) || (title === "Care reminders" && !!editingRem);
+    details.innerHTML = `<summary><span class="sec-icon">${SECTION_ICONS[title] || "⚙️"}</span><span class="sec-title"><b>${esc(title)}</b><span class="hint ${warn ? "warn" : ""}">${esc(hint)}</span></span><span class="chev">›</span></summary><div class="sec-body"></div>`;
+    const body = details.querySelector(".sec-body");
+    for (let node = h2.nextElementSibling; node && node.tagName !== "H2";) { const next = node.nextElementSibling; body.appendChild(node); node = next; }
+    h2.replaceWith(details);
+    details.addEventListener("toggle", () => {
+      details.open ? openSections.add(title) : openSections.delete(title);
+      try { localStorage.setItem("petcare_open_sections", JSON.stringify([...openSections])); } catch {}
+    });
+  }
+  view.insertAdjacentHTML("afterbegin", '<h1 class="settings-title">Settings</h1>');
+}
 function remindersList(s) {
   if (!s.reminders.length) return '<p class="muted small">No reminders yet. Add vaccinations, vet visits, grooming or medicine.</p>';
   const pets = Object.fromEntries(s.pets.map((x) => [x.id, x]));
@@ -678,26 +786,31 @@ async function loadSettings() {
       </fieldset>
     </form>
 
+    <h2>🔐 Encrypted channel</h2>
+    <div class="card" id="sec-panel"></div>
+
     <h2>Account</h2>
     <form class="card" id="pw-form">
+      ${status && status.must_change_password ? '<p class="small" style="color:var(--warn)">You are still using the default password. Choose your own below.</p>' : ""}
       <label for="cp">Current password</label><input id="cp" type="password" autocomplete="current-password" required>
       <label for="np">New password (8+ characters)</label><input id="np" type="password" autocomplete="new-password" minlength="8" required>
       <div class="actions"><button>Change password</button><button type="button" class="ghost" id="logout">Sign out</button></div>
     </form>
     <p class="muted small" style="margin:14px 4px">Hub ${status ? (status.link.connected ? "connected to the sensor script" : "waiting for the sensor script") : ""}.</p>`;
 
+  collapseSections(s);
   document.querySelectorAll("[data-pet]").forEach((b) => b.onclick = () => { editingPet = b.dataset.pet; editingRem = null; loadSettings(); });
   document.querySelectorAll("[data-rem]").forEach((b) => b.onclick = () => { editingRem = b.dataset.rem; editingPet = null; loadSettings(); });
   document.querySelectorAll("[data-rem-done]").forEach((b) => b.onclick = () => guard(b, async () => { await api("/api/reminders/done", {id: b.dataset.remDone}); toast("Done 🎉"); loadSettings(); refresh(); }));
   if (editingPet) petEditor(s);
   if (editingRem) reminderEditor(s);
-  document.querySelectorAll(".cal-bowl").forEach((bowl) => bowl.querySelectorAll("[data-use]").forEach((b) => b.onclick = () => {
+  document.querySelectorAll("#cal-form .cal-bowl").forEach((bowl) => bowl.querySelectorAll("[data-use]").forEach((b) => b.onclick = () => {
     const z = status && status.zones.find((x) => x.sensor_id === bowl.dataset.id);
     if (!z || !z.online) return toast("No live reading from this sensor");
     bowl.querySelector(`[name=${b.dataset.use}]`).value = z.distance_cm.toFixed(1);
   }));
   if ($("cal-form")) $("cal-form").onsubmit = (e) => { e.preventDefault(); guard(e.submitter, async () => {
-    const bowls = [...document.querySelectorAll(".cal-bowl")].map((b) => ({id: b.dataset.id, name: b.querySelector("h3").textContent,
+    const bowls = [...document.querySelectorAll("#cal-form .cal-bowl")].map((b) => ({id: b.dataset.id, name: b.querySelector("h3").textContent,
       full: b.querySelector("[name=full]").value, empty: b.querySelector("[name=empty]").value}));
     const filled = bowls.filter((b) => b.full !== "" || b.empty !== "");
     const half = filled.find((b) => b.full === "" || b.empty === "");
@@ -725,12 +838,13 @@ async function loadSettings() {
     await api("/api/settings/mirror", {hosts: $("mh").value, port: +$("mp").value}); toast($("mh").value.trim() ? "Saved · connecting to the laptops" : "Dashboard copy turned off"); refresh(); }); };
   $("pw-form").onsubmit =(e) => { e.preventDefault(); guard(e.submitter, async () => {
     await api("/api/account/password", {current: $("cp").value, new: $("np").value}); $("cp").value = $("np").value = ""; toast("Password changed"); refresh(); }); };
-  $("logout").onclick = async () => { await api("/api/logout", {}).catch(() => {}); showLogin(); };
+  $("logout").onclick = async () => { await api("/api/logout", {}).catch(() => {}); forgetChannel(); showLogin(); };
+  securityPanel();
   refresh();
 }
 
 // ---------- start ----------
-api("/api/session").then((r) => r.user ? showApp() : showLogin()).catch(showLogin);
+api("/api/session").then((r) => r.user && r.encrypted && channel ? showApp() : (forgetChannel(), showLogin())).catch(showLogin);
 </script>
 </body>
 </html>

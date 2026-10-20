@@ -9,11 +9,11 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // DEFAULT_LAYOUT is only used until the first status arrives. The pet is drawn just in front of each sensor.
 // ---------------------------------------------------------------------------
 const DEFAULT_LAYOUT = {
-  1: {x: 1.15, z: 14.0, facing: 180, mount: 'floor'},
+  1: {x: 10.15, z: 1.15, facing: -90, mount: 'raised'},
   2: {x: 8.5, z: 15.12, facing: 180, mount: 'raised'},
   3: {x: 10.15, z: 4.75, facing: -90, mount: 'raised'},
-  4: {x: 10.15, z: 1.15, facing: -90, mount: 'raised'},
-  5: {x: 0.0, z: 0.2, facing: 37, mount: 'raised'},
+  4: {x: 0.0, z: 0.2, facing: 37, mount: 'raised'},
+  5: {x: 1.15, z: 14.0, facing: 180, mount: 'floor'},
 };
 const SPOT_DISTANCE = 1.9;
 const SPOTS = {};
@@ -22,7 +22,7 @@ const WATER_BOTTLE = {x: 8.14, z: 3.75};
 const ROLE = {eat: ['Food', '#f4c36a'], sleep: ['Bed', '#43cbb8'], water: ['Water', '#72a9ff'], toilet: ['Litter', '#c9a0ff'], entrance: ['Entrance', '#ff9f6b']};
 
 let built = false, running = false, frameId = 0, observer = null, host = null;
-let renderer, scene, camera, orbit, root, pet, bottleWater, bowlFood, petMaterials, kit;
+let renderer, scene, camera, orbit, root, pet, bottleWater, bowlFood, foodBowl, petMaterials, kit;
 let layoutKey = '';
 const sensorGroups = {};
 const markers = {}, rings = {};
@@ -97,8 +97,11 @@ function build() {
   cylinder(WATER_BOTTLE.x, 1.75, WATER_BOTTLE.z, .22, .22, .16, mat('#569acb'));
   bottleWater = cylinder(WATER_BOTTLE.x, .30, WATER_BOTTLE.z, .37, .37, 1, mat('#3d8fd6', {transparent: true, opacity: .8, roughness: .2}));
   bottleWater.geometry.translate(0, .5, 0);
-  cylinder(FOOD_BOWL.x, .14, FOOD_BOWL.z, .62, .44, .28, mat('#d9534f', {roughness: .5}));
-  bowlFood = cylinder(FOOD_BOWL.x, .08, FOOD_BOWL.z, .54, .54, 1, mat('#9b6a3c'));
+  // The food bowl is a group so it can sit in front of whichever sensor is assigned to food.
+  foodBowl = new THREE.Group(); foodBowl.position.set(FOOD_BOWL.x, 0, FOOD_BOWL.z); root.add(foodBowl);
+  add(new THREE.Mesh(new THREE.CylinderGeometry(.62, .44, .28, 32), mat('#d9534f', {roughness: .5})), foodBowl).position.y = .14;
+  bowlFood = add(new THREE.Mesh(new THREE.CylinderGeometry(.54, .54, 1, 32), mat('#9b6a3c')), foodBowl);
+  bowlFood.position.y = .08;
   bowlFood.geometry.translate(0, .5, 0);
 
   kit = {add, cardboard, chrome};
@@ -255,6 +258,8 @@ export function update(status) {
   markers[5].led.color.set(!g.online ? '#7a2f2f' : entranceActive ? '#ffc04d' : '#2f9c8a');
   markers[5].led.emissive.set(entranceActive ? '#a06a10' : '#000000');
 
+  const food = status.zones.find((z) => z.mode === 'eat');
+  if (food && SPOTS[food.sensor_id]) foodBowl.position.set(SPOTS[food.sensor_id].x, 0, SPOTS[food.sensor_id].z);
   // Bowl levels: water column in the bottle, food layer in the bowl (empty when unknown).
   const level = (mode) => { const z = status.zones.find((x) => x.mode === mode && x.level_percent != null); return z ? z.level_percent / 100 : 0; };
   bottleWater.scale.y = Math.max(.001, 1.25 * level('water'));

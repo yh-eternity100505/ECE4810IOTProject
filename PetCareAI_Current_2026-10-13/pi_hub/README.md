@@ -142,6 +142,28 @@ The phone app's Settings → Developer dashboard shows the encryption state and 
 
 EDC is an educational cipher; the HMAC is what stops forged or altered packets.
 
+### Phone app encryption (EDC + HMAC, end to end)
+
+The phone app uses the same EDC + HMAC-SHA256 scheme as the Pi ↔ laptop link, implemented in `web/edc.js`
+(plain JavaScript: SHA-256, HMAC, PBKDF2, Base32 and EDC, so it also works over plain HTTP).
+
+1. **Sign-in without sending the password.** `GET /api/login/challenge` returns the account's PBKDF2 salt and a
+   one-time nonce. The phone computes PBKDF2-SHA256(password) (600,000 rounds, the same value the hub stores) and
+   sends only `proof = HMAC(hash, "login|nonce|client_nonce")`. The hub answers with its own proof, so the phone
+   knows it is talking to the real hub. Unknown usernames get a fake salt, so accounts cannot be enumerated.
+2. **Per-session keys.** Both sides derive `master = HMAC(hash, "session|nonce|client_nonce")`, then the EDC key and
+   the HMAC key from it. No key is ever transmitted. The phone keeps them for that browser tab only.
+3. **Every request and response** goes through `POST /api/secure` as an `EDC_PACKET`: random nonce first (EDC has no
+   IV; its ciphertext feedback spreads the nonce through every later token), timestamp (±120 s), Base32, EDC
+   encryption, HMAC tag. The hub verifies the tag before decrypting, rejects replays and runs the request through the
+   normal routes; the reply is encrypted the same way. Sessions made this way refuse plaintext API calls (403).
+4. **Settings → 🔐 Encrypted channel** shows packet counts on both sides and the last request/response ciphertext
+   and HMAC tags, for demonstration.
+
+Limits: EDC is an educational cipher (the HMAC is what makes packets unforgeable). Over plain HTTP the page code
+itself is not protected, so an active attacker on the network could alter it; use the Tailscale address
+(`tailscale serve` gives `https://raspberrypi.<tailnet>.ts.net`) to close that gap.
+
 ### Desktop dashboard sync (hub → desktop)
 
 The hub is the master copy of the pet and the hardware setup. Every connected desktop dashboard receives a

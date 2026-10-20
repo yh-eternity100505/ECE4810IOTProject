@@ -58,6 +58,9 @@ MIN_COVERAGE_HOURS = 20      # daily checks need this much observed time
 SESSION_SECONDS = 14 * 86400
 PBKDF2_ITERATIONS = 600_000
 MAX_BODY = 16 * 1024
+PHONE_MAX_JSON = 1024 * 1024        # largest decrypted phone request/response
+PHONE_MAX_PACKET = PHONE_MAX_JSON * 9
+CHALLENGE_SECONDS = 60
 SENSOR_PINS = {"1": [13, 15], "2": [16, 18], "3": [22, 24], "4": [29, 31], "5": [7, 11]}  # physical BOARD TRIG/ECHO
 AVATARS = ("cat", "dog", "rabbit", "hamster", "guinea_pig", "bird", "fish", "turtle")
 REMINDER_KINDS = ("vaccination", "vet", "grooming", "medicine", "parasite", "other")
@@ -79,11 +82,11 @@ DEFAULT_SETTINGS = {
     # Where each sensor physically sits. x 0-10 left->right, z 0 front -> 15 back of the tray;
     # facing in degrees (0 = toward the back, 90 = right, 180 = toward the front, -90 = left).
     "sensor_layout": {
-        "1": {"x": 1.15, "z": 14.0, "facing": 180, "mount": "floor", "note": "Food bowl, upper-left lane"},
+        "1": {"x": 10.15, "z": 1.15, "facing": -90, "mount": "raised", "note": "Food bowl, lower-right corner"},
         "2": {"x": 8.5, "z": 15.12, "facing": 180, "mount": "raised", "note": "Above the bed, upper-right"},
         "3": {"x": 10.15, "z": 4.75, "facing": -90, "mount": "raised", "note": "Water bottle, right side"},
-        "4": {"x": 10.15, "z": 1.15, "facing": -90, "mount": "raised", "note": "Litter box, lower-right corner"},
-        "5": {"x": 0.0, "z": 0.2, "facing": 37, "mount": "raised", "note": "Entrance, lower-left corner"},
+        "4": {"x": 0.0, "z": 0.2, "facing": 37, "mount": "raised", "note": "Litter box, lower-left corner"},
+        "5": {"x": 1.15, "z": 14.0, "facing": 180, "mount": "floor", "note": "Entrance, upper-left lane"},
     },
     "reminders": [],
     "anomaly_threshold": 0.30,
@@ -1102,24 +1105,28 @@ def edc_decrypt(ciphertext, key):
 
 class EdcCodec:
     """Encrypt-then-HMAC packets; verify the HMAC before decrypting; reject stale or replayed packets."""
-    def __init__(self, edc_key, hmac_key):
+    def __init__(self, edc_key, hmac_key, max_json=EDC_MAX_JSON):
         self.edc_key = _edc_key(edc_key)
         if not isinstance(hmac_key, bytes) or len(hmac_key) != 32:
             raise ValueError("HMAC key must be 32 bytes (64 hex characters)")
         self.hmac_key = hmac_key
+        self.max_json = max_json
+        self.max_wire = max(EDC_MAX_WIRE, max_json * 9)  # Base32 (x1.6) then 5 characters per EDC token
         self._seen = {}
+        self._lock = threading.Lock()
 
     def fresh(self):
         """Same keys, separate replay memory (one per dashboard connection)."""
-        return EdcCodec(self.edc_key, self.hmac_key)
+        return EdcCodec(self.edc_key, self.hmac_key, self.max_json)
 
     def _tag(self, ciphertext):
         return hmac.new(self.hmac_key, EDC_AUTH_CONTEXT + ciphertext.encode(), "sha256").hexdigest()
 
     def encode(self, message):
-        inner = {"v": 1, "sent_at": int(time.time()), "nonce": secrets.token_hex(16).upper(), "message": message}
+        # Nonce first: EDC has no IV, but its ciphertext feedback carries this random start through every later token.
+        inner = {"nonce": secrets.token_hex(16).upper(), "v": 1, "sent_at": int(time.time()), "message": message}
         raw = json.dumps(inner, separators=(",", ":"), allow_nan=False).encode()
-        if len(raw) > EDC_MAX_JSON:
+        if len(raw) > self.max_json:
             raise ValueError("Message too large for EDC")
         ciphertext = edc_encrypt(base64.b32encode(raw).decode("ascii").rstrip("="), self.edc_key)
         return {"type": "EDC_PACKET", "v": 1, "ciphertext": ciphertext, "tag": self._tag(ciphertext)}
@@ -1129,7 +1136,7 @@ class EdcCodec:
                 or packet["type"] != "EDC_PACKET" or type(packet["v"]) is not int or packet["v"] != 1):
             raise ValueError("Expected an EDC_PACKET")
         ciphertext, tag = packet["ciphertext"], packet["tag"]
-        if not isinstance(ciphertext, str) or not 0 < len(ciphertext) <= EDC_MAX_WIRE:
+        if not isinstance(ciphertext, str) or not 0 < len(ciphertext) <= self.max_wire:
             raise ValueError("Invalid ciphertext size")
         if not isinstance(tag, str) or not re.fullmatch(r"[0-9a-f]{64}", tag) or not hmac.compare_digest(self._tag(ciphertext), tag):
             raise ValueError("HMAC verification failed")
@@ -1137,7 +1144,7 @@ class EdcCodec:
         if not re.fullmatch(r"[A-Z2-7]+", plaintext):
             raise ValueError("Invalid decrypted Base32")
         raw = base64.b32decode(plaintext + "=" * (-len(plaintext) % 8))
-        if len(raw) > EDC_MAX_JSON:
+        if len(raw) > self.max_json:
             raise ValueError("Decrypted JSON too large")
         inner = json.loads(raw)
         if not isinstance(inner, dict) or set(inner) != {"v", "sent_at", "nonce", "message"} or inner["v"] != 1:
@@ -1150,10 +1157,11 @@ class EdcCodec:
             raise ValueError("Invalid nonce")
         if not isinstance(message, dict) or not isinstance(message.get("type"), str):
             raise ValueError("Invalid message")
-        self._seen = {n: t for n, t in self._seen.items() if now - t <= EDC_REPLAY_SECONDS}
-        if nonce in self._seen:
-            raise ValueError("Replay rejected")
-        self._seen[nonce] = now
+        with self._lock:
+            self._seen = {n: t for n, t in self._seen.items() if now - t <= EDC_REPLAY_SECONDS}
+            if nonce in self._seen:
+                raise ValueError("Replay rejected")
+            self._seen[nonce] = now
         return message
 
 
@@ -1379,16 +1387,42 @@ class Mirror(threading.Thread):
 # HTTP API + phone web app
 # ============================================================
 class Sessions:
+    """Signed-in phones. A session made by the encrypted login carries its own EDC + HMAC codec."""
     def __init__(self):
         self.lock = threading.Lock()
         self.tokens = {}
         self.failures = {}
+        self.challenges = {}
+        self.secret = secrets.token_bytes(32)   # fake salts for unknown usernames
+        self.channels = {}                      # token -> {"codec", "stats"}
 
-    def create(self, username):
+    def create(self, username, codec=None):
         token = secrets.token_urlsafe(32)
         with self.lock:
             self.tokens[token] = (username, time.time() + SESSION_SECONDS)
+            if codec:
+                self.channels[token] = {"codec": codec, "stats": {"started": now_iso(), "requests": 0, "rejected": 0,
+                                                                 "bytes_in": 0, "bytes_out": 0, "last": None}}
         return token
+
+    def channel(self, token):
+        with self.lock:
+            return self.channels.get(token or "")
+
+    def challenge(self, username):
+        nonce = secrets.token_hex(16)
+        with self.lock:
+            now = time.time()
+            self.challenges = {n: c for n, c in self.challenges.items() if c[1] > now}
+            if len(self.challenges) > 200:
+                raise ApiError(429, "Too many sign-in attempts. Try again in a minute.")
+            self.challenges[nonce] = (username, now + CHALLENGE_SECONDS)
+        return nonce
+
+    def take_challenge(self, nonce, username):
+        with self.lock:
+            entry = self.challenges.pop(str(nonce), None)
+        return bool(entry and entry[0] == username and entry[1] > time.time())
 
     def user(self, token):
         with self.lock:
@@ -1396,15 +1430,18 @@ class Sessions:
             if entry and entry[1] > time.time():
                 return entry[0]
             self.tokens.pop(token or "", None)
+            self.channels.pop(token or "", None)
         return None
 
     def end(self, token):
         with self.lock:
             self.tokens.pop(token or "", None)
+            self.channels.pop(token or "", None)
 
     def end_user(self, username, keep=None):
         with self.lock:
             self.tokens = {t: e for t, e in self.tokens.items() if e[0] != username or t == keep}
+            self.channels = {t: c for t, c in self.channels.items() if t in self.tokens}
 
     def locked(self, ip):
         with self.lock:
@@ -1427,10 +1464,20 @@ class ApiError(Exception):
         self.status, self.message = status, message
 
 
+def derive_session_keys(password_hash, nonce, client_nonce):
+    """Both sides compute these from the stored PBKDF2 hash and the two login nonces; no key is ever sent."""
+    master = hmac.new(password_hash, f"session|{nonce}|{client_nonce}".encode(), "sha256").digest()
+    edc_key = hmac.new(master, b"edc", "sha256").hexdigest().upper()[:32]   # 0-9 A-F fits the EDC alphabet
+    mac_key = hmac.new(master, b"mac", "sha256").digest()
+    return EdcCodec(edc_key, mac_key, PHONE_MAX_JSON)
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "PetCareHub/1.0"
     hub: Hub = None
     sessions: Sessions = None
+    _capture = None        # set while answering a request that arrived inside an EDC packet
+    _secure_body = None
 
     def log_message(self, fmt, *args):
         logging.debug("HTTP %s " + fmt, self.client_address[0], *args)
@@ -1452,6 +1499,9 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def _json(self, payload, status=200, extra=None):
+        if self._capture is not None:
+            self._capture.append((status, payload, extra or {}))
+            return
         body = json.dumps(payload).encode()
         self._headers(status, "application/json", len(body), extra)
         self.wfile.write(body)
@@ -1480,12 +1530,26 @@ class Handler(BaseHTTPRequestHandler):
         return cookie["petcare_session"].value if "petcare_session" in cookie else None
 
     def _user(self):
-        user = self.sessions.user(self._token())
+        token = self._token()
+        user = self.sessions.user(token)
         if not user:
             raise ApiError(401, "Please sign in")
+        if self._capture is None and self.sessions.channel(token):
+            raise ApiError(403, "This session only accepts EDC-encrypted requests")
         return user
 
+    def _ip(self):
+        """Client address; behind `tailscale serve` the real one is in X-Forwarded-For."""
+        ip = self.client_address[0]
+        if ip in ("127.0.0.1", "::1") and self.headers.get("X-Forwarded-For"):
+            return self.headers["X-Forwarded-For"].split(",")[0].strip()[:64]
+        return ip
+
     def _body(self):
+        if self._capture is not None:
+            if not isinstance(self._secure_body, dict):
+                raise ApiError(400, "Expected a JSON object")
+            return self._secure_body
         length = int(self.headers.get("Content-Length") or 0)
         if length > MAX_BODY:
             raise ApiError(413, "Request too large")
@@ -1514,11 +1578,15 @@ class Handler(BaseHTTPRequestHandler):
 
     # ----- routing -----
     def do_GET(self):
-        self._dispatch({
+        self._dispatch(self._get_routes())
+
+    def _get_routes(self):
+        return {
             "/": lambda: self._file(WEB_DIR / "index.html", "text/html; charset=utf-8"),
             "/index.html": lambda: self._file(WEB_DIR / "index.html", "text/html; charset=utf-8"),
             "/manifest.webmanifest": lambda: self._file(WEB_DIR / "manifest.webmanifest", "application/manifest+json"),
             "/icon.svg": lambda: self._file(WEB_DIR / "icon.svg", "image/svg+xml"),
+            "/edc.js": lambda: self._file(WEB_DIR / "edc.js", "text/javascript; charset=utf-8"),
             "/twin.js": lambda: self._file(WEB_DIR / "twin.js", "text/javascript; charset=utf-8"),
             "/vendor/three.module.js": lambda: self._file(WEB_DIR / "vendor" / "three.module.js", "text/javascript; charset=utf-8", 604800),
             "/vendor/OrbitControls.js": lambda: self._file(WEB_DIR / "vendor" / "OrbitControls.js", "text/javascript; charset=utf-8", 604800),
@@ -1527,13 +1595,19 @@ class Handler(BaseHTTPRequestHandler):
             "/api/activity": self.get_activity,
             "/api/alerts": self.get_alerts,
             "/api/settings": self.get_settings,
-        })
+            "/api/login/challenge": self.get_challenge,
+            "/api/security": self.get_security,
+        }
 
     def do_POST(self):
         # Custom header blocks cross-site form posts (CSRF) on top of SameSite cookies.
         if self.headers.get("X-PetCare") != "1":
             return self._json({"error": "Missing request header"}, 403)
-        self._dispatch({
+        self._dispatch(self._post_routes())
+
+    def _post_routes(self):
+        return {
+            "/api/secure": self.post_secure,
             "/api/login": self.post_login,
             "/api/logout": self.post_logout,
             "/api/alerts/read": self.post_alerts_read,
@@ -1555,29 +1629,101 @@ class Handler(BaseHTTPRequestHandler):
             "/api/account/password": self.post_password,
             "/api/settings/mirror": self.post_mirror,
             "/api/settings/layout": lambda: (self._user(), self.hub.save_layout(self._body().get("layout") or {}), self._json({"ok": True})),
-        })
+        }
 
-    # ----- auth -----
+    # ----- auth: challenge-response, the password never leaves the phone -----
     def get_session(self):
-        user = self.sessions.user(self._token())
-        self._json({"user": user})
+        token = self._token()
+        self._json({"user": self.sessions.user(token), "encrypted": bool(self.sessions.channel(token))})
+
+    def get_challenge(self):
+        """Step 1: the phone gets the PBKDF2 salt/iterations for its username and a one-time nonce."""
+        if self.sessions.locked(self._ip()):
+            raise ApiError(429, "Too many attempts. Try again in a minute.")
+        username = parse_qs(urlparse(self.path).query).get("username", [""])[0].strip()[:40]
+        record = self.hub.settings.data["users"].get(username)
+        # Unknown usernames get a stable fake salt, so the reply does not reveal which accounts exist.
+        salt = record["salt"] if record else hmac.new(self.sessions.secret, username.encode(), "sha256").hexdigest()[:32]
+        iterations = record["iterations"] if record else PBKDF2_ITERATIONS
+        self._json({"salt": salt, "iterations": iterations, "nonce": self.sessions.challenge(username)})
 
     def post_login(self):
-        ip = self.client_address[0]
+        """Step 2: the phone proves it knows the password with HMAC(PBKDF2(password), nonces)."""
+        ip = self._ip()
         if self.sessions.locked(ip):
             raise ApiError(429, "Too many attempts. Try again in a minute.")
         body = self._body()
-        username, password = str(body.get("username", "")).strip(), str(body.get("password", ""))
+        username, nonce = str(body.get("username", "")).strip(), str(body.get("nonce", ""))
+        client_nonce, proof = str(body.get("client_nonce", "")), str(body.get("proof", ""))
+        if not re.fullmatch(r"[0-9a-f]{32}", client_nonce) or not re.fullmatch(r"[0-9a-f]{64}", proof):
+            raise ApiError(400, "Sign in with the current app version (refresh the page)")
         users = self.hub.settings.data["users"]
         record = users.get(username) or next(iter(users.values()))  # constant work for unknown users
-        valid = check_password(record, password) and username in users
+        password_hash = bytes.fromhex(record["hash"])
+        expected = hmac.new(password_hash, f"login|{nonce}|{client_nonce}".encode(), "sha256").hexdigest()
+        valid = self.sessions.take_challenge(nonce, username) and username in users and hmac.compare_digest(expected, proof)
         self.sessions.record(ip, valid)
         logging.info("Login %s for %s", "succeeded" if valid else "failed", username or "(blank)")
         if not valid:
             raise ApiError(401, "Wrong username or password")
-        token = self.sessions.create(username)
-        self._json({"user": username}, extra={"Set-Cookie":
+        token = self.sessions.create(username, derive_session_keys(password_hash, nonce, client_nonce))
+        server_proof = hmac.new(password_hash, f"server|{nonce}|{client_nonce}".encode(), "sha256").hexdigest()
+        self._json({"user": username, "server_proof": server_proof}, extra={"Set-Cookie":
                    f"petcare_session={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age={SESSION_SECONDS}"})
+
+    # ----- EDC channel: every request and response after login -----
+    def post_secure(self):
+        token = self._token()
+        channel = self.sessions.channel(token)
+        if not self.sessions.user(token) or not channel:
+            raise ApiError(401, "Please sign in")
+        length = int(self.headers.get("Content-Length") or 0)
+        if length > PHONE_MAX_PACKET:
+            raise ApiError(413, "Request too large")
+        codec, stats = channel["codec"], channel["stats"]
+        try:
+            packet = json.loads(self.rfile.read(length))
+            request = codec.decode(packet)
+            if request.get("type") != "API_REQUEST" or request.get("method") not in ("GET", "POST") \
+                    or not str(request.get("path", "")).startswith("/api/") or request["path"].startswith("/api/secure"):
+                raise ValueError("Invalid API request")
+        except (ValueError, TypeError, KeyError) as exc:
+            stats["rejected"] += 1
+            logging.warning("Rejected phone packet: %s", exc)
+            raise ApiError(400, "Packet rejected: " + str(exc)[:80])
+        stats["requests"] += 1
+        stats["bytes_in"] += length
+        # Run the decrypted request through the normal routes, capturing the answer instead of sending it.
+        self._capture, self._secure_body, original = [], request.get("body"), self.path
+        self.path = request["path"]
+        try:
+            routes = self._get_routes() if request["method"] == "GET" else self._post_routes()
+            self._dispatch(routes)
+        finally:
+            self.path = original
+            captured, self._capture, self._secure_body = self._capture, None, None
+        status, payload, extra = captured[0] if captured else (500, {"error": "No response"}, {})
+        reply = codec.encode({"type": "API_RESPONSE", "path": request["path"], "status": status, "data": payload})
+        stats["last"] = {"time": now_iso(), "path": request["path"].split("?")[0],
+                         "request": {"ciphertext": packet["ciphertext"][:160], "tag": packet["tag"], "length": len(packet["ciphertext"])},
+                         "response": {"ciphertext": reply["ciphertext"][:160], "tag": reply["tag"], "length": len(reply["ciphertext"])}}
+        body = json.dumps(reply).encode()
+        stats["bytes_out"] += len(body)
+        headers = {k: v for k, v in extra.items() if k.lower() == "set-cookie"}
+        if len(body) > 4096 and "gzip" in self.headers.get("Accept-Encoding", ""):
+            import gzip
+            body = gzip.compress(body, 5)   # EDC tokens repeat a lot; this makes them ~6x smaller on the wire
+            headers.update({"Content-Encoding": "gzip", "Vary": "Accept-Encoding"})
+        self._headers(200, "application/json", len(body), headers)
+        self.wfile.write(body)
+
+    def get_security(self):
+        self._user()
+        channel = self.sessions.channel(self._token())
+        self._json({"cipher": "EDC (keyed 6x6 matrix, coordinate feedback, 4-token permutation) + HMAC-SHA256",
+                    "key_exchange": "Challenge-response on the PBKDF2-SHA256 password hash; per-session keys via HMAC",
+                    "replay": f"Timestamp within {EDC_MAX_SKEW} s and one-time nonce per packet",
+                    "server": dict(channel["stats"]) if channel else None})
 
     def post_logout(self):
         self.sessions.end(self._token())
