@@ -3,12 +3,11 @@ from PySide6.QtCore import Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QMainWindow, QWidget, QStackedWidget, QVBoxLayout, QHBoxLayout,
                               QFrame, QScrollArea, QButtonGroup, QApplication)
-from .widgets import label, button, CorgiMascot
+from .widgets import label, button, DogMascot
 from .theme import apply_theme
 from .login_page import LoginPage
 from .dashboard_page import DashboardPage
 from .live_monitoring_page import LiveMonitoringPage
-from .behaviour_page import BehaviourPage
 from .history_page import HistoryPage
 from .alerts_page import AlertsPage
 from .pet_profile_page import PetProfilePage
@@ -29,7 +28,6 @@ class MainWindow(QMainWindow):
         self.movement = MovementController(controller)
         self.hub = HubController(controller, self.movement.receiver)
         self.movement_dialog = MovementDialog(self.movement, self)
-        self.movement.authentication_requested.connect(self.show_movement)
         self.movement.authenticated.connect(self.movement_authenticated)
         self.setWindowTitle("PetCare AI · Reconfigurable Smart Pet Hub")
         self.resize(1440, 900)
@@ -38,7 +36,6 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.root)
         self.login_page = LoginPage(controller.auth, controller.db)
         self.root.addWidget(self.login_page)
-        self.login_page.movement_requested.connect(self.show_movement)
         shell = QWidget()
         shell.setObjectName("shell")
         shell_layout = QHBoxLayout(shell)
@@ -56,30 +53,30 @@ class MainWindow(QMainWindow):
         side.addWidget(label("BEHAVIOUR & WELLNESS", "muted"))
         side.addSpacing(30)
         self.page_stack = QStackedWidget()
-        self.pages = [DashboardPage(controller), LiveMonitoringPage(controller), BehaviourPage(controller),
-                      HistoryPage(controller), AlertsPage(controller), PetProfilePage(controller), SettingsPage(controller),
+        from pet_monitoring.services.change_log import ChangeLog
+        self.change_log = ChangeLog(controller.db, self, hub=self.hub)
+        self.movement.receiver.received.connect(self.change_log.event)
+        self.pages = [DashboardPage(controller), LiveMonitoringPage(controller),
+                      HistoryPage(controller, self.change_log), AlertsPage(controller), PetProfilePage(controller), SettingsPage(controller),
                       HubPage(self.hub, self.show_movement, self.movement),
                       SecurityInspector(self.movement.receiver)]
         self.pages[1].bind_live_inputs(self.hub, self.movement)
         from pet_monitoring.services.hub_sync import HubSync
-        self.hub_sync = HubSync(controller, self.hub, self.movement.receiver, self)
-        self.hub_sync.synced.connect(lambda: (self.pages[7].sync_from_hub(self.hub_sync.state), self.pages[5].reload(self.hub_sync.state)))
-        self.pages[7].sync_from_hub(self.hub_sync.state)
+        self.hub_sync = HubSync(controller, self.hub, self.movement.receiver, self, change_log=self.change_log)
+        self.hub_sync.synced.connect(lambda: (self.pages[6].sync_from_hub(self.hub_sync.state), self.pages[4].reload(self.hub_sync.state)))
+        self.pages[6].sync_from_hub(self.hub_sync.state)
         if self.hub_sync.state:
-            self.pages[5].reload(self.hub_sync.state)
+            self.pages[4].reload(self.hub_sync.state)
         self.pages[1].heading.setText("Live Sensors")
-        for index, title in ((0, "Pet activity overview"), (2, "Activity Analysis"), (3, "Sleep & toilet history")):
-            self.pages[index].live_heading = title
-        for page in (self.pages[0], self.pages[2], self.pages[3]):
-            bind_analysis_page(page, self.hub)
-            page.box.insertWidget(1, LiveSensorPanel(self.hub, self.movement))
-        names = ["Overview", "Live Sensors", "Activity Analysis", "History", "Alerts", "Pet Profile", "Settings", "Sensor Hub", "Security Inspector"]
-        symbols = ["▦", "◉", "◇", "↗", "⚑", "◎", "⚙", "▤", "◇"]
-        for page in (self.pages[0], self.pages[2], self.pages[3]):
-            notice = label("DEMO ANALYTICS · simulated five-zone prototype", "muted", True)
-            page.box.insertWidget(0, notice)
-            self.hub.changed.connect(lambda widget=notice: widget.setVisible(self.hub.mode != "Live Pi"))
-            notice.setVisible(self.hub.mode != "Live Pi")
+        self.pages[0].live_heading = "Pet activity overview"
+        bind_analysis_page(self.pages[0], self.hub)
+        self.pages[0].box.insertWidget(1, LiveSensorPanel(self.hub, self.movement))
+        notice = label("DEMO ANALYTICS - simulated five-zone prototype", "muted", True)
+        self.pages[0].box.insertWidget(0, notice)
+        self.hub.changed.connect(lambda: notice.setVisible(self.hub.mode != "Live Pi"))
+        notice.setVisible(self.hub.mode != "Live Pi")
+        names = ["Overview", "Live Sensors", "History", "Alerts", "Pet Profile", "Settings", "Sensor Hub", "Security Inspector"]
+        symbols = ["\u25a6", "\u25c9", "\u2197", "\u2691", "\u25ce", "\u2699", "\u25a4", "\u25c7"]
         self.nav_buttons = []
         self.navigation = QButtonGroup(self)
         self.navigation.setExclusive(True)
@@ -94,17 +91,17 @@ class MainWindow(QMainWindow):
             nav.setCheckable(True)
             self.navigation.addButton(nav, i)
             self.nav_buttons.append(nav)
-            if i == 7:
+            if i == 6:
                 side.insertWidget(3, nav)
             else:
                 side.addWidget(nav)
         # Keep Settings last visually while preserving existing page indices.
-        side.removeWidget(self.nav_buttons[6])
-        side.addWidget(self.nav_buttons[6])
-        self.nav_buttons[7].setChecked(True)
-        self.page_stack.setCurrentIndex(7)
+        side.removeWidget(self.nav_buttons[5])
+        side.addWidget(self.nav_buttons[5])
+        self.nav_buttons[6].setChecked(True)
+        self.page_stack.setCurrentIndex(6)
         side.addStretch()
-        side.addWidget(button("Movement & Access", self.show_movement))
+        self.phone_lan_url = ""
         self.phone_app_url = ""
         self.phone_app_button = button("Open phone app", self.open_phone_app)
         self.phone_app_button.setEnabled(False)
@@ -113,8 +110,8 @@ class MainWindow(QMainWindow):
         self.sidebar_pet = label("Milo\nCat · British Shorthair", wrap=True)
         companion_row = QHBoxLayout()
         companion_row.setSpacing(10)
-        self.corgi_mascot = CorgiMascot()
-        companion_row.addWidget(self.corgi_mascot)
+        self.dog_mascot = DogMascot()
+        companion_row.addWidget(self.dog_mascot)
         companion_row.addWidget(self.sidebar_pet, 1)
         side.addLayout(companion_row)
         side.addWidget(label("Private, camera-free insights", "muted", True))
@@ -164,7 +161,7 @@ class MainWindow(QMainWindow):
             return
         self.movement.cancel_authentication()
         self.root.setCurrentIndex(1)
-        self.navigate(7)
+        self.navigate(6)
         self.c.start()
         self.statusBar().showMessage("Signed in · Monitoring active", 5000)
 
@@ -208,16 +205,23 @@ class MainWindow(QMainWindow):
         self.c.close()
         event.accept()
 
-    def set_phone_app_status(self, message, url=""):
+    def set_phone_app_status(self, message, url="", phone_url=""):
         if url:
             self.phone_app_url = url
+        if phone_url:
+            self.phone_lan_url = phone_url
         self.phone_app_button.setEnabled(bool(self.phone_app_url))
-        self.phone_app_button.setToolTip(message + ("\n" + self.phone_app_url if self.phone_app_url else ""))
+        self.phone_app_button.setToolTip(message + ("\nOn this laptop: " + self.phone_app_url if self.phone_app_url else "") + ("\nOn your phone: " + self.phone_lan_url if self.phone_lan_url else ""))
         self.statusBar().showMessage(message, 15000)
 
     def open_phone_app(self):
         if self.phone_app_url:
-            QDesktopServices.openUrl(QUrl(self.phone_app_url))
+            if QDesktopServices.openUrl(QUrl(self.phone_app_url)):
+                return True
+            self.statusBar().showMessage("Could not open a browser. Open " + self.phone_app_url, 15000)
+        else:
+            self.statusBar().showMessage("Phone app is not connected yet. Check Pi power, Wi-Fi and SSH status.", 15000)
+        return False
 
     def phone_app_stopped(self):
         self.phone_app_url = ""

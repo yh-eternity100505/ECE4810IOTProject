@@ -1,6 +1,6 @@
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLineEdit, QCheckBox
-from .widgets import Card, label, button, CorgiMascot
+from .widgets import Card, label, button, DogMascot
 from .otp_request import OtpRequest
 
 
@@ -20,8 +20,8 @@ class LoginPage(QWidget):
         story.setSpacing(20)
         story.addStretch()
         story.addWidget(label("P E T C A R E   /   A I", "eyebrow"))
-        self.corgi_mascot = CorgiMascot(112, 124)
-        story.addWidget(self.corgi_mascot)
+        self.dog_mascot = DogMascot(112, 124)
+        story.addWidget(self.dog_mascot)
         story.addWidget(label("A closer look at\ntheir everyday wellbeing.", "title"))
         story.addWidget(label("Understand your pet's routines with discreet sensors,\nbehaviour insights, and timely notifications.", "muted", True))
         story.addWidget(label("01   Monitor daily routines\n\n02   Learn their normal baseline\n\n03   Notice meaningful changes", "sectionTitle"))
@@ -76,7 +76,6 @@ class LoginPage(QWidget):
         for widget in self.factor_widgets:
             card.box.addWidget(widget)
             widget.hide()
-        card.box.addWidget(button("Raspberry Pi movement access", self.movement_requested.emit))
         self.status = label(self.auth.error or "Administrator password and OTP required.", "muted", True)
         card.box.addWidget(self.status)
         card.box.addSpacing(8)
@@ -116,6 +115,8 @@ class LoginPage(QWidget):
             self.status.setText("Password verified. Request an OTP on Telegram." if self.auth.factor_mode == "telegram" else "Password verified. Enter your existing authenticator code.")
             self.status.setStyleSheet("")
             self.otp.setFocus()
+            if self.auth.factor_mode == "telegram":
+                self.request_code()
         else:
             self.status.setText(self.auth.last_error)
             self.status.setStyleSheet("color: #d15c67;")

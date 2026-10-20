@@ -3,6 +3,7 @@ from pathlib import Path
 import shlex
 import shutil
 import socket
+import json
 from PySide6.QtCore import QObject, QProcess, Signal
 
 
@@ -10,6 +11,7 @@ class PiHubLauncher(QObject):
     ready = Signal(int, str)
     status = Signal(str)
     stopped = Signal()
+    synced = Signal(dict)
     REMOTE_ROOT = "/home/jiating/.cache/petcare/gui-hub"
     DATA_DIR = "/home/jiating/Desktop/pi_hub/data"
     REMOTE_PORT = 5007
@@ -26,6 +28,8 @@ class PiHubLauncher(QObject):
         self.process.errorOccurred.connect(self._error)
         self.phase = None
         self.local_port = None
+        self.web_port = None
+        self._sync_buffer = b""
         self._buffer = b""
         self._ready = False
         self._closing = False
@@ -35,6 +39,14 @@ class PiHubLauncher(QObject):
     @property
     def is_ready(self):
         return self._ready
+
+    @property
+    def phone_url(self):
+        return f"http://{self.address.rsplit('@', 1)[-1]}:8080"
+
+    @property
+    def desktop_url(self):
+        return f"http://127.0.0.1:{self.web_port}"
 
     def _options(self):
         return ["-i", str(self.key_path), "-o", "IdentitiesOnly=yes",
@@ -54,16 +66,33 @@ class PiHubLauncher(QObject):
         self._ready = self.legacy_hub = self._closing = False
         self._buffer = b""
         self._failure_detail = ""
-        with socket.socket() as listener:
+        self._sync_buffer = b""
+        with socket.socket() as listener, socket.socket() as web:
             listener.bind(("127.0.0.1", 0))
+            web.bind(("127.0.0.1", 0))
             self.local_port = listener.getsockname()[1]
+            self.web_port = web.getsockname()[1]
         self.phase = "prepare"
         self.status.emit("Phone app: preparing the Pi hub over SSH")
         self.process.start(shutil.which("ssh"), self._options() + [self.address,
                            "mkdir -p " + shlex.quote(self.REMOTE_ROOT + "/web")])
 
     def _read(self):
-        self._buffer = (self._buffer + bytes(self.process.readAllStandardOutput()))[-16384:]
+        chunk = bytes(self.process.readAllStandardOutput())
+        self._buffer = (self._buffer + chunk)[-16384:]
+        self._sync_buffer += chunk
+        if len(self._sync_buffer) > 65536:
+            self._sync_buffer = b""
+        while b"\n" in self._sync_buffer:
+            line, self._sync_buffer = self._sync_buffer.split(b"\n", 1)
+            if line.startswith(b"[PETCARE_HUB_SYNC] "):
+                try:
+                    from pet_monitoring.services.movement_receiver import parse_message
+                    message = parse_message(line.split(b"] ", 1)[1].decode("utf-8"))
+                    if message["type"] == "HUB_SYNC":
+                        self.synced.emit(message)
+                except (ValueError, TypeError, KeyError, UnicodeError):
+                    self.status.emit("Phone app: settings sync unavailable; retrying")
         if b"[PETCARE_HUB_LEGACY]" in self._buffer:
             self.legacy_hub = True
         for line in self._buffer.splitlines(keepends=True):
@@ -71,8 +100,7 @@ class PiHubLauncher(QObject):
                 self._failure_detail = line.split(b"[PETCARE_HUB_ERROR]", 1)[1].decode("utf-8", errors="replace").strip()[:300]
         if self.phase == "run" and not self._ready and b"[PETCARE_HUB_READY]" in self._buffer:
             self._ready = True
-            host = self.address.rsplit("@", 1)[-1]
-            url = f"http://{host}:8080"
+            url = self.desktop_url
             self.status.emit("Phone app ready: " + url)
             self.ready.emit(self.local_port, url)
 
@@ -97,8 +125,7 @@ class PiHubLauncher(QObject):
         elif self.phase == "upload hub":
             self.phase = "upload web"
             self.process.start(shutil.which("scp"), self._options() +
-                               [str(self.source / "web" / name) for name in ("index.html", "manifest.webmanifest", "icon.svg")] +
-                               [f"{self.address}:{self.REMOTE_ROOT}/web/"])
+                               ["-r", str(self.source / "web"), f"{self.address}:{self.REMOTE_ROOT}/"])
         elif self.phase == "upload web":
             self._run_hub()
         else:
@@ -117,7 +144,8 @@ class PiHubLauncher(QObject):
         self.process.start(shutil.which("ssh"), self._options() +
                            ["-tt", "-o", "ExitOnForwardFailure=yes", "-o", "ServerAliveInterval=10",
                             "-o", "ServerAliveCountMax=3", "-L",
-                            f"127.0.0.1:{self.local_port}:127.0.0.1:{self.REMOTE_PORT}", self.address, command])
+                            f"127.0.0.1:{self.local_port}:127.0.0.1:{self.REMOTE_PORT}", "-L",
+                            f"127.0.0.1:{self.web_port}:127.0.0.1:8080", self.address, command])
 
     def _error(self, error):
         if not self._closing and error == QProcess.ProcessError.FailedToStart:

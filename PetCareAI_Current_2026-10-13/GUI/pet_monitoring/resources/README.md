@@ -1,7 +1,5 @@
-# Corgi mascot
+# Dog mascot
 
-`corgi-mascot.png` is a transparent pixel-art brand companion generated with the built-in image generation tool. It appears in the sidebar and on the login page. It is decorative and does not replace the monitored pet's identity or profile photo. The shared `CorgiMascot` widget resolves this asset relative to the package and uses Qt's fast scaling to retain crisp pixel edges. No additional dependencies are needed.
+`brown-dog-mascot.png` is the transparent realistic brown dog selected by the user, generated from their brick dog reference photographs. It appears on the login page and in the sidebar. It is decorative and independent of the monitored pet profile.
 
-Generation prompt:
-
-> Use case: stylized-concept. Asset type: transparent PNG mascot for a premium desktop pet behaviour monitoring dashboard, displayed at about 70px wide. Primary request: a single charming but restrained pixel-art Pembroke Welsh corgi, seated, three-quarter view facing right, upright ears, short legs, recognisable cream chest and muzzle, tiny dark eyes and nose. Style: authentic clean 32x32-style pixel sprite with crisp square pixel blocks, no antialiasing, flat limited palette, no gradients or texture. Palette: muted bronze #B58863, ivory #D3C3B9, taupe #A79E9C, deep teal #0E232B and charcoal #141414; legible against a dark sidebar. Composition: one complete corgi centred, full body, little transparent margin, simple calm pose, no props. Constraints: genuine transparent background with alpha, no floor, no shadow, no text, no border, no badge, no extra animals, no oversized cartoon eyes. Intended as a discreet brand mascot, not the monitored pet's photo.
+The shared `DogMascot` widget resolves the image relative to the package and uses smooth scaling for the photographic image. No additional dependencies are required.

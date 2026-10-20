@@ -204,13 +204,14 @@ def main(argv=None):
     # Keep the accepted-message relay separate from the original decoder and SSH sender.
     def phone_ready(port, url):
         phone_bridge.start(port, legacy=phone_launcher.legacy_hub)
-        window.set_phone_app_status("Phone app ready", url)
+        window.set_phone_app_status("Phone app ready", url, phone_launcher.phone_url)
         # The session has checked that a system sensor service does not already own GPIO.
         start_pi_sender(app, receiver.port)
         # Stop the sender first, then close only our hub/tunnel session.
         app.aboutToQuit.connect(phone_launcher.stop)
 
     phone_launcher.ready.connect(phone_ready)
+    phone_launcher.synced.connect(window.hub_sync.apply)
     phone_launcher.status.connect(window.set_phone_app_status)
     phone_bridge.status.connect(window.set_phone_app_status)
     phone_launcher.stopped.connect(phone_bridge.stop)

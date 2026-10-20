@@ -45,10 +45,10 @@ class ApplicationTests(unittest.TestCase):
         live = self.window.pages[1]
         self.assertEqual(live.cards["entrance"][1].text(), "24.2 cm")
         self.assertEqual(live.cards["sleep"][1].text(), "11.2 cm")
-        for index in (0, 2, 3):
+        for index in (0,):
             panel = self.window.pages[index].findChild(LiveSensorPanel)
             self.assertEqual(panel.table.item(4, 2).text(), "24.2 cm")
-        self.window.navigate(6)
+        self.window.navigate(5)
         self.window.movement.process({"type": "GESTURE_READING", "sensor_id": 5, "distance_cm": 9.4, "state": "RECORDING", "samples": 12, "total": 60})
         self.assertEqual(live.cards["entrance"][1].text(), "9.4 cm")
         self.assertEqual(self.window.pages[0].findChild(LiveSensorPanel).table.item(4, 2).text(), "9.4 cm")
@@ -128,7 +128,7 @@ class ApplicationTests(unittest.TestCase):
 
     def test_all_demo_buttons_and_notification_delivery(self):
         self.login()
-        demo = self.window.pages[6]
+        demo = self.window.pages[5]
         self.c.simulate("normal")
         normal = self.c.wellness.score
         expectations = {
@@ -150,7 +150,7 @@ class ApplicationTests(unittest.TestCase):
                     self.assertIn("Mock", alert.telegram_status)
                 if scenario == "abnormal":
                     self.assertEqual(self.c.latest_event.classification, "Abnormal Movement")
-                    self.assertEqual(self.window.pages[2].classification.text(), "Abnormal Movement")
+                    self.assertEqual(self.c.latest_event.classification, "Abnormal Movement")
                 if scenario == "sensor_failure":
                     self.assertEqual(self.c.connected_count, 4)
                 self.assertEqual(self.db.summaries(1)[0].source, "demo")
@@ -166,7 +166,7 @@ class ApplicationTests(unittest.TestCase):
     def test_alert_filter_read_and_clear(self):
         self.c.simulate("abnormal")
         self.assertTrue(wait_for(lambda: self.c.alerts[0].telegram_sent))
-        page = self.window.pages[4]
+        page = self.window.pages[3]
         page.table.selectRow(0)
         page.read_button.click()
         self.assertTrue(self.c.alerts[0].read)
@@ -185,11 +185,11 @@ class ApplicationTests(unittest.TestCase):
         self.assertEqual(self.db.alerts(), [])
 
     def test_profile_settings_and_restart_persistence(self):
-        profile = self.window.pages[5]
+        profile = self.window.pages[4]
         profile.fields["name"].setText("Luna")
         profile.fields["baseline_food_visits"].setValue(7)
         profile.save()
-        settings = self.window.pages[6]
+        settings = self.window.pages[5]
         settings.thresholds["sleep"].setValue(30)
         settings.refresh_rate.setValue(.5)
         settings.theme.setCurrentText("Dark")
@@ -216,21 +216,19 @@ class ApplicationTests(unittest.TestCase):
             APP.processEvents()
             reopened.close()
 
-    def test_history_ranges_and_charts(self):
+    def test_history_ranges_and_change_log(self):
         self.login()
-        self.window.navigate(3)
-        page = self.window.pages[3]
-        for index, expected in [(0, 1), (1, 7), (2, 30)]:
+        self.window.navigate(2)
+        page = self.window.pages[2]
+        self.window.change_log.add("Phone settings", "Pet name changed from Milo to Luna")
+        for index in (0, 1, 2, 3):
             page.period.setCurrentIndex(index)
             page.refresh()
-            for key, plot in page.plots.items():
-                curve = plot.listDataItems()[0]
-                x, y = curve.getData()
-                self.assertEqual(len(y), expected)
-                self.assertTrue(all(math.isfinite(v) for v in y))
-        page.tabs.setCurrentIndex(2)
-        page.refresh_comparison()
-        self.assertIn("visits", page.today.caption.text())
+            self.assertEqual(page.table.rowCount(), 1)
+        page.category.setCurrentText("Activity")
+        self.assertEqual(page.table.rowCount(), 0)
+        page.category.setCurrentText("Phone settings")
+        self.assertIn("Luna", page.table.item(0, 2).text())
 
     def test_resize_and_dark_theme(self):
         self.login()
@@ -242,7 +240,7 @@ class ApplicationTests(unittest.TestCase):
                 APP.processEvents()
                 scroll = self.window.page_stack.currentWidget()
                 self.assertLessEqual(scroll.widget().minimumSizeHint().width(), scroll.viewport().width(), f"Page {i} at {width}x{height}")
-        settings = self.window.pages[6]
+        settings = self.window.pages[5]
         settings.theme.setCurrentText("Dark")
         settings.save()
         self.assertEqual(self.c.settings["theme"], "Dark")
@@ -256,7 +254,7 @@ class ApplicationTests(unittest.TestCase):
         self.assertEqual(self.c.location, "Unknown")
         self.assertTrue(all(interpret(r) == "Sensor Offline" for r in self.c.readings))
         # Mock demo controls are disabled without hardware simulation.
-        self.assertFalse(self.window.pages[6].demo_buttons["abnormal"].isEnabled())
+        self.assertFalse(self.window.pages[5].demo_buttons["abnormal"].isEnabled())
         page.mock.setChecked(True)
         invalid = SensorReading("sleep", "Sleeping Area", float("nan"), True, "2026-01-01T00:00:00")
         with patch.object(self.c.sensor, "read", return_value=[invalid]):
@@ -284,7 +282,7 @@ class ApplicationTests(unittest.TestCase):
         self.assertGreater(len(heartbeat), 5)
 
     def test_notifications_disabled_and_thresholds_applied(self):
-        page = self.window.pages[6]
+        page = self.window.pages[5]
         page.notifications["food"].setChecked(False)
         page.save()
         self.c.simulate("low_food")
@@ -309,7 +307,7 @@ class ApplicationTests(unittest.TestCase):
         self.assertEqual(self.db.summaries(1, "demo")[0].food, 6)
 
     def test_profile_validation_and_zero_weights(self):
-        profile = self.window.pages[5]
+        profile = self.window.pages[4]
         profile.fields["name"].setText("")
         profile.save()
         self.assertEqual(self.c.profile.name, "Milo")
@@ -320,7 +318,7 @@ class ApplicationTests(unittest.TestCase):
         profile.save()
         self.assertEqual(self.c.profile.baseline_sleep, 8)
         self.assertIn("24 hours", profile.feedback.text())
-        settings = self.window.pages[6]
+        settings = self.window.pages[5]
         for field in settings.weights.values():
             field.setValue(0)
         settings.save()

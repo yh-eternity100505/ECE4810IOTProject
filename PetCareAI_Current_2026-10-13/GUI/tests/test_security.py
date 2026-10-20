@@ -220,7 +220,7 @@ class SecurityIntegrationTests(unittest.TestCase):
     def test_normal_and_tampered_demo_buttons_execute_real_path(self):
         self.login()
         self.c.timer.stop()  # Isolate exact state changes from legitimate later timer updates.
-        page = self.w.pages[6]
+        page = self.w.pages[5]
         page.demo_buttons["secure_packet"].click()
         self.assertEqual(self.c.location, "Food Area")
         self.assertEqual(self.c.behaviour, "Eating")

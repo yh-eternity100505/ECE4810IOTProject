@@ -9,19 +9,19 @@ STATUS_COLORS = {"NORMAL": "#249873", "ATTENTION": "#c18724", "ABNORMAL": "#d15c
                  "OFFLINE": "#8795a6", "INFO": "#148a87", "WARNING": "#c18724", "CRITICAL": "#d15c67"}
 
 
-class CorgiMascot(QLabel):
+class DogMascot(QLabel):
     """Decorative brand companion, independent of the monitored pet's profile."""
     def __init__(self, width=64, height=76):
         super().__init__()
         self.setFixedSize(width, height)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setAccessibleName("Pixel-art corgi mascot")
+        self.setAccessibleName("Realistic brown dog mascot")
         self.setToolTip("Your PetCare companion")
-        path = Path(__file__).resolve().parents[1] / "resources" / "corgi-mascot.png"
+        path = Path(__file__).resolve().parents[1] / "resources" / "brown-dog-mascot.png"
         pixmap = QPixmap(str(path))
         if not pixmap.isNull():
             self.setPixmap(pixmap.scaled(width, height, Qt.AspectRatioMode.KeepAspectRatio,
-                                         Qt.TransformationMode.FastTransformation))
+                                         Qt.TransformationMode.SmoothTransformation))
 
 
 def label(text, role=None, wrap=False):

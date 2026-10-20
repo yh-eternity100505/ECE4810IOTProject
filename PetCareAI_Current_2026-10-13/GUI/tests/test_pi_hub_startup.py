@@ -255,13 +255,13 @@ class SessionOwnershipTests(unittest.TestCase):
 
     def test_ready_marker_is_buffered_and_emitted_only_once(self):
         launcher = PiHubLauncher("jiating@192.0.2.10")
-        launcher.phase, launcher.local_port = "run", 23456
+        launcher.phase, launcher.local_port, launcher.web_port = "run", 23456, 23457
         ready = []
         launcher.ready.connect(lambda port, url: ready.append((port, url)))
         with patch.object(launcher.process, "readAllStandardOutput", side_effect=[b"[PETCARE_", b"HUB_READY]\r\n", b"more output"]):
             for _ in range(3):
                 launcher._read()
-        self.assertEqual(ready, [(23456, "http://192.0.2.10:8080")])
+        self.assertEqual(ready, [(23456, "http://127.0.0.1:23457")])
         launcher.stop()
 
 

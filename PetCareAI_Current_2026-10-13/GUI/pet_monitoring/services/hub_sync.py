@@ -11,9 +11,10 @@ from PySide6.QtCore import QObject, Signal, Slot
 class HubSync(QObject):
     synced = Signal()
 
-    def __init__(self, controller, hub, receiver, parent=None):
+    def __init__(self, controller, hub, receiver, parent=None, change_log=None):
         super().__init__(parent)
         self.c, self.hub = controller, hub
+        self.change_log = change_log
         # Last synced extras the desktop models have no field for (sex, birthday, locations, pins).
         self.state = controller.db.get("hub_sync", None)
         receiver.received.connect(self.apply)
@@ -23,6 +24,8 @@ class HubSync(QObject):
         if message.get("type") != "HUB_SYNC":
             return
         pet, sensors = message["pet"], message["sensors"]
+        if self.change_log is not None:
+            self.change_log.settings(message)
 
         profile = self.c.profile
         updated = replace(profile, name=pet["name"], animal_type=pet["animal"] or profile.animal_type,

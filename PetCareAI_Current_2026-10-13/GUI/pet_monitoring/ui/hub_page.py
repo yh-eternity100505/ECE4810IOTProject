@@ -3,7 +3,6 @@ from .widgets import Page, Card, label, button
 from .pet_profile_page import number
 from pet_monitoring.hub_controller import MODES, MODE_THRESHOLDS
 from .gesture_sensor_card import GestureSensorCard
-from .activity_analysis import ActivityAnalysis
 from .container_levels import LevelCalibration
 
 
@@ -20,7 +19,7 @@ class HubPage(Page):
         self.source.currentTextChanged.connect(hub.set_mode)
         controls.addWidget(self.source)
         controls.addStretch()
-        controls.addWidget(button("Connect Pi / Gesture access", movement_callback))
+        controls.addWidget(button("Pi connection settings", movement_callback))
         self.box.addLayout(controls)
         self.status = label("", "muted", True)
         self.box.addWidget(self.status)
@@ -71,8 +70,6 @@ class HubPage(Page):
             self.metrics[mode] = value, duration
             row.addWidget(card)
         self.box.addLayout(row)
-        self.activity_analysis = ActivityAnalysis(hub)
-        self.box.addWidget(self.activity_analysis)
         live = Card("Live zone status")
         live.box.addWidget(label("All four pet sensors monitor continuously when you change tabs. Live data uses the Pi's proximity rules and confirmed assignment revision; inputs turn offline after 5 seconds without readings.", "muted", True))
         self.live = QTableWidget(4, 4)

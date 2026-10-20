@@ -6,7 +6,7 @@ verifies and decrypts experimental EDC + HMAC packets on port 5005 without a bri
 
 The default dashboard is now **Sensor Hub**, with four configurable pet-zone inputs on one Raspberry Pi and a fixed fifth sensor for gesture KNN. Start with [HUB_INTEGRATION.md](HUB_INTEGRATION.md). The original fixed-zone pages remain labeled Legacy.
 
-Raspberry Pi movement predictions connect through **Movement & Access**. See [MOVEMENT_INTEGRATION.md](MOVEMENT_INTEGRATION.md) for the TCP message contract, Pi sender example, and connection diagnostics. Administrator login uses a password and Telegram OTP.
+Raspberry Pi movement predictions connect through **Sensor Hub ? Pi connection settings**. See [MOVEMENT_INTEGRATION.md](MOVEMENT_INTEGRATION.md) for the TCP message contract, Pi sender example, and connection diagnostics. Administrator login uses a password and Telegram OTP.
 
 A working PySide6 desktop application for the ECE4810 **AIoT Smart Pet Health and Behaviour Monitoring System**. It monitors five camera-free sensing zones, interprets station presence, compares daily routines with a pet's baseline, and records behavioural insights and alerts.
 
@@ -71,8 +71,10 @@ Then launch normally:
 .\.venv-local\Scripts\python.exe main.py
 ```
 
-The existing login card asks for your password first. Click **Request OTP on
-Telegram**, enter the code, then **Verify and sign in**. Codes expire in two
+The existing login card asks for your password first. **Sign in** verifies the
+password and automatically requests the OTP using the saved Telegram details.
+Enter the code, then **Verify and sign in**. Use **Resend OTP on Telegram** if
+needed; you do not need to enter the bot token or chat ID again. Codes expire in two
 minutes and resend requests have a 30-second cooldown. Failed delivery cannot
 sign you in; there is no mock code displayed in the app. **Use a recovery code
 instead** replaces the Telegram step, still requires your password, and consumes
@@ -171,17 +173,17 @@ Readings below configurable thresholds are interpreted as presence. Invalid, mis
 
 Mock Mode seeds 30 days of clearly labelled illustrative totals. Today's demo totals start near a normal baseline so a university presentation does not require hours of observation. Mock ML produces `Normal Sleep`, `Pass-by`, and `Abnormal Movement`, with simulated confidence and latency. The KNN/SVM/Decision Tree performance table contains example metrics, **not measured evaluation results**.
 
-Mock Mode can be changed in Live Monitoring or Settings → System. With Mock Mode off, the default real sensor adapter reports offline and the default ML adapter reports unavailable, until you install your own adapters. Demo controls are disabled in that mode. Monitoring pauses on logout.
+Mock Mode can be changed in Live Monitoring or Settings â†’ System. With Mock Mode off, the default real sensor adapter reports offline and the default ML adapter reports unavailable, until you install your own adapters. Demo controls are disabled in that mode. Monitoring pauses on logout.
 
 ## Presentation sequence
 
 1. Sign in with the demo account. The dashboard shows Milo and normal behavioural status.
 2. Open Live Monitoring: five readings update and Sleeping Area shows pet presence.
 3. Open Behaviour AI: `Normal Sleep`, approximately 92% confidence, and demo KNN appear.
-4. Go to **Settings → Demo Mode** and select **Simulate Abnormal Movement**.
+4. Go to **Settings â†’ Demo Mode** and select **Simulate Abnormal Movement**.
 5. Return to the dashboard: behaviour changes and the wellness score falls by 40 points.
-6. Behaviour AI shows `Abnormal Movement`. Alerts records “Unusual movement detected in sleeping area.” Mock Telegram delivery appears in the alert and in `logs/app.log`.
-7. History retains today's changed totals. SQLite retains sensor samples, the classification, alert, and summary.
+6. Overview shows `Abnormal Movement`. Alerts records â€œUnusual movement detected in sleeping area.â€ Mock Telegram delivery appears in the alert and in `logs/app.log`.
+7. Overview retains the activity totals; History lists observed phone-setting changes and completed Pi events. SQLite retains sensor samples, the classification, alert, and summary.
 8. Choose **Reset Demo** to return to normal sensing and normal totals. Existing history/alerts are retained.
 
 Additional working controls:
@@ -209,13 +211,13 @@ category_score = max(0, 100 - 100 * abs(observed - baseline) / baseline)
 wellness = sum(weight * category_score) / sum(weight)
 ```
 
-The five default weights are activity 20%, sleep 25%, food 20%, water 20%, litter 15%. Edit them under Settings → Sensors & score. They are normalised automatically. An abnormal movement classification subtracts 40 points; an offline sensor or simulated network failure subtracts 15 points. Scores are clamped to 0–100.
+The five default weights are activity 20%, sleep 25%, food 20%, water 20%, litter 15%. Edit them under Settings â†’ Sensors & score. They are normalised automatically. An abnormal movement classification subtracts 40 points; an offline sensor or simulated network failure subtracts 15 points. Scores are clamped to 0â€“100.
 
 | Score | Interpretation |
 |---|---|
-| 80–100 | NORMAL |
-| 60–79 | ATTENTION |
-| 0–59 | ABNORMAL |
+| 80â€“100 | NORMAL |
+| 60â€“79 | ATTENTION |
+| 0â€“59 | ABNORMAL |
 
 These are configurable prototype rules, not a clinically validated metric. The score card includes the requested explanatory tooltip.
 
@@ -223,7 +225,7 @@ Baseline deviation is `(observed - baseline) / baseline`. By default a deviation
 
 ## SQLite and logging
 
-SQLite is created automatically and stores the profile, settings, sensor batches, behaviour events, alerts/read/delivery state, and daily summaries. Demo and live summaries use separate records for the same date, so toggling simulation preserves real daily totals. History shows the selected mode's summaries. Demo seeding inserts only missing demo dates.
+SQLite is created automatically and stores the profile, settings, sensor batches, behaviour events, alerts/read/delivery state, and daily summaries. Demo and live summaries use separate records for the same date, so toggling simulation preserves real daily totals. Overview shows activity summaries. History stores a persistent chronological log of observed phone-setting changes and completed Pi activity, with time and category filters. Intermediate phone edits while disconnected cannot be reconstructed. Demo seeding inserts only missing demo dates.
 
 Sensor batches are stored every five seconds; classification changes are stored immediately and steady classifications every ten seconds. Summaries are saved every five seconds and on logout/close. Demo scenario changes save their data immediately. A clean restart retains the edited profile, settings, alerts, classifications, and summaries. Alerts support severity filters, marking read, clearing one, and clearing all.
 
@@ -261,14 +263,14 @@ For expensive inference, run the model on a worker and have `predict()` return t
 
 ## Telegram
 
-Settings → Connections supports Mock and Real modes. Credentials are optional at startup.
+Settings â†’ Connections supports Mock and Real modes. Credentials are optional at startup.
 
 1. Obtain a Telegram bot token and a chat ID, and start a conversation with your bot.
 2. Select Real, enter the token and chat ID, enable notifications, then Save settings.
 3. Select Test saved Telegram connection. This sends a short test message using the saved settings.
-4. Choose which categories should send Telegram messages in Settings → Notifications.
+4. Choose which categories should send Telegram messages in Settings â†’ Notifications.
 
-Mock mode logs `[MOCK TELEGRAM]` instead of making an HTTP request. Alert delivery is labelled `Sent · Mock` to distinguish it from actual Telegram delivery. Turning a category off suppresses Telegram for that category; the local alert still exists.
+Mock mode logs `[MOCK TELEGRAM]` instead of making an HTTP request. Alert delivery is labelled `Sent Â· Mock` to distinguish it from actual Telegram delivery. Turning a category off suppresses Telegram for that category; the local alert still exists.
 
 Tokens are masked while entering and the field is cleared after saving. On Windows, the token is encrypted using the current user's DPAPI and the encrypted blob is stored in SQLite. When secure storage is unavailable (including some sandboxes), the token remains **session-only**, with a visible status message; it is never written as plaintext. On macOS/Linux secure persistence needs a platform keychain adapter. To remove a token, tick Remove saved bot token and save.
 
@@ -284,6 +286,10 @@ All sends and tests run in a background executor with finite HTTP timeouts. Miss
 
 Tests run Qt offscreen and use temporary databases. They exercise login, sidebar navigation, logout, live timers, timed sensor patterns, all scenario buttons, confidence/history, all graph ranges, baseline/profile edits, alert filters/read/clear, restart persistence, theme/resizing, invalid sensors, unavailable ML, database failure, token handling, notification toggles, and responsiveness during a slow network operation. Real Telegram HTTP responses/failures are mocked; hardware and real trained-model accuracy require later integration testing.
 
-The UI is designed for 1440 × 900 and 1280 × 720. Smaller heights use vertical page scrolling; cards and text adapt to the available width. `--smoke-test` opens the real GUI and closes it after two seconds without entering credentials.
+The UI is designed for 1440 Ã— 900 and 1280 Ã— 720. Smaller heights use vertical page scrolling; cards and text adapt to the available width. `--smoke-test` opens the real GUI and closes it after two seconds without entering credentials.
 
 API references used during implementation: [Qt thread signals](https://doc.qt.io/qtforpython-6.8/examples/example_widgets_thread_signals.html), [PyQtGraph PlotWidget](https://github.com/pyqtgraph/pyqtgraph/blob/master/pyqtgraph/widgets/PlotWidget.py), and [Microsoft CryptProtectData](https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptprotectdata).
+
+### Phone-app link and change history
+
+The sidebar **Open phone app** button opens the Pi web app through a localhost SSH tunnel after the hub reports ready. Its tooltip also shows the LAN address to open on a phone connected to the same network. The Pi and existing SSH connection must be available. Deployment includes the complete web asset folder. Phone pet/profile and sensor-setting snapshots are validated and recorded in **History**; credentials and Telegram tokens are excluded. Activity summaries are consolidated in **Overview**.
