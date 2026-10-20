@@ -45,26 +45,10 @@ class MovementDialog(QDialog):
         layout.addWidget(self.state)
         self.approach_status = label("", "muted", True)
         layout.addWidget(self.approach_status)
-        layout.addWidget(label("Gesture authentication", "sectionTitle"))
-        layout.addWidget(label("A gesture starts authentication. Access requires a registered username and a verified OTP. Real OTPs go to the Telegram account configured in Settings.", "muted", True))
-        row = QHBoxLayout()
-        self.username = QLineEdit()
-        self.username.setPlaceholderText("Registered username")
-        row.addWidget(self.username)
-        row.addWidget(button("Request OTP", lambda: self.m.request_otp(self.username.text())))
-        layout.addLayout(row)
-        row = QHBoxLayout()
-        self.otp = QLineEdit()
-        self.otp.setPlaceholderText("6-digit OTP")
-        self.otp.setMaxLength(6)
-        self.otp.setEchoMode(QLineEdit.EchoMode.Password)
-        row.addWidget(self.otp)
-        row.addWidget(button("Verify OTP", self.verify, True))
-        layout.addLayout(row)
+        layout.addWidget(label("Administrator access", "sectionTitle"))
+        layout.addWidget(label("Movement detection does not grant administrator access. Sign in on the login page with your password and authenticator.", "muted", True))
         self.auth_status = label("", "muted", True)
-        self.demo = label("", "muted", True)
         layout.addWidget(self.auth_status)
-        layout.addWidget(self.demo)
         layout.addWidget(label("Movement event history", "sectionTitle"))
         self.table = QTableWidget(0, 3)
         self.table.setMinimumHeight(180)
@@ -74,7 +58,6 @@ class MovementDialog(QDialog):
         layout.addWidget(self.table, 1)
         self.m.changed.connect(self.refresh)
         self.m.c.changed.connect(self.refresh)
-        self.otp.returnPressed.connect(self.verify)
         self.refresh()
 
     def start_receiver(self):
@@ -85,10 +68,6 @@ class MovementDialog(QDialog):
         self.m.cancel_authentication()
         self.m.receiver.stop()
 
-    def verify(self):
-        self.m.verify_otp(self.otp.text())
-        self.otp.clear()
-
     def refresh(self):
         self.connection.setText(self.m.connection)
         confidence = "—" if self.m.confidence is None else f"{self.m.confidence:.1%}"
@@ -97,7 +76,6 @@ class MovementDialog(QDialog):
         approach = next((alert for alert in self.m.c.alerts if alert.id == self.m.approach_alert_id), None)
         self.approach_status.setText("Entrance alert Telegram: " + approach.telegram_status if approach else "")
         self.auth_status.setText(self.m.auth_status)
-        self.demo.setText(f"MOCK DEMO CODE: {self.m.demo_code}" if self.m.demo_code else "")
         self.table.setRowCount(len(self.m.history))
         for row, event in enumerate(self.m.history):
             for column, value in enumerate((event["timestamp"], event["prediction"], f"{event['confidence']:.1%}")):

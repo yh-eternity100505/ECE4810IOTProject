@@ -1,6 +1,6 @@
 # Raspberry Pi movement integration
 
-Launch with `Launch PetCare AI.vbs`. Open **Raspberry Pi movement access** on the login page, or **Movement & Access** in the sidebar. Set the listen address (normally `0.0.0.0`) and port (default `5005`), then start the receiver. It remains active while logged out so a gesture can start authentication. Stop closes the receiver and invalidates any challenge. The receiver is off until explicitly started.
+Launch with `Launch PetCare AI.vbs`. Open **Raspberry Pi movement access** on the login page, or **Movement & Access** in the sidebar. Set the listen address (normally `0.0.0.0`) and port (default `5005`), then start the receiver. It remains active while logged out for monitoring and connection diagnostics. Normal GUI startup also starts the receiver and the existing SSH-managed sender. Stop closes the receiver. Movement cannot authenticate the administrator.
 
 On the Pi, keep GPIO acquisition, the six-second recording, feature extraction and KNN prediction in the existing long-running program. Load the model once. Connect to the laptop's LAN IPv4 address, not `0.0.0.0`. Allow inbound TCP on the selected port in Windows Firewall if needed. Reconnect after a dropped connection. Do not import the Pi's GPIO script in the GUI.
 
@@ -33,11 +33,11 @@ with socket.create_connection(("YOUR_LAPTOP_IPV4", 5005), timeout=5) as connecti
     send({"type": "IDLE"})
 ```
 
-The GUI records up to 100 movement results with laptop receipt timestamps separately from pet behaviour history. Pass-by only records an event. Approach-and-stay raises a security warning in Alerts and uses the existing Telegram notification settings. An authentication gesture opens the movement panel and allows a registered username to request an OTP within two minutes. A gesture alone never creates a session.
+The GUI records up to 100 movement results with laptop receipt timestamps separately from pet behaviour history. Pass-by records an event. Approach-and-stay raises a security warning in Alerts and uses the existing Telegram notification settings. An authentication gesture opens the movement panel, where a notice directs the user to the normal administrator login.
 
-OTPs expire after two minutes, allow five verification attempts, are single-use, and have a 30-second request cooldown. In Real Telegram mode, access requires successful delivery and verification. Configure the bot token and chat ID in Settings → Connections after normal password login. This prototype uses the configured Telegram account for registered users; it does not provide individual per-user Telegram enrollment. In Mock mode, a clearly labeled demo code appears in the movement panel. Mock OTPs are never sent to the Telegram logger. Codes are not stored in SQLite or event history. Logout, stop and a new authentication gesture invalidate pending codes.
+**Gestures and movement-panel codes cannot create administrator sessions.** There is no mock movement-login fallback. The administrator must use the existing login page: password first, then request and verify a Telegram OTP or use a single-use recovery code. Set up the administrator once with `main.py --setup-admin`; see [README.md](README.md).
 
-This receiver uses plain TCP on a trusted lab network. Movement messages do not inherit the existing simulated sensor encryption/HMAC verification. Production use requires authenticated transport and per-user Telegram enrollment. Pet monitoring and its demo KNN remain separate from the real Pi movement classifier.
+Messages shown below are protocol examples for plaintext tests only. Live encrypted connections retain the existing EDC + HMAC verification; see [EDC_INTEGRATION.md](EDC_INTEGRATION.md). Pi monitoring, configuration acknowledgments, encrypted transport and SSH startup are unchanged.
 
 ## Local check without Raspberry Pi
 
@@ -47,6 +47,6 @@ Start the receiver, then run this from a second PowerShell window:
 .\.venv-local\Scripts\python.exe -c 'import socket,json; s=socket.create_connection(("127.0.0.1",5005)); s.sendall((json.dumps({"type":"MOVEMENT_RESULT","prediction":"AUTH_GESTURE","confidence":0.94})+"\n").encode()); s.close()'
 ```
 
-Enter `admin`, request an OTP, and verify the displayed mock code. You can send the other two predictions with the same command to verify logging and alerts.
+For this plaintext-only test use an isolated receiver without saved EDC keys or EDC requirements. A movement event must not change the login state. Send the other two predictions to verify logging and alerts. Use the encrypted sender for the normal live receiver.
 
 Run automated checks with `.\.venv-local\Scripts\python.exe -m unittest discover -s tests -v`.

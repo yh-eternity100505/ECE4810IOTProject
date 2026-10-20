@@ -1,12 +1,9 @@
-"""Movement decisions and short-lived OTP challenges on the Qt main thread."""
-import hmac
+"""Movement telemetry and alerts; never an administrator authentication source."""
 import json
-import secrets
 import time
 from datetime import datetime
 from PySide6.QtCore import QObject, QTimer, Signal, Slot
 from pet_monitoring.models import Alert
-from pet_monitoring.services.authentication_service import Session
 from pet_monitoring.services.movement_receiver import MovementReceiver, parse_message
 
 
@@ -14,7 +11,6 @@ class MovementController(QObject):
     changed = Signal()
     authentication_requested = Signal()
     authenticated = Signal()
-    delivery_finished = Signal(int, bool, str)
 
     def __init__(self, controller):
         super().__init__(controller)
@@ -22,7 +18,6 @@ class MovementController(QObject):
         self.receiver = MovementReceiver(self)
         self.receiver.received.connect(self.process)
         self.receiver.status.connect(self.set_connection)
-        self.delivery_finished.connect(self._delivered)
         self.connection = "Receiver stopped"
         self.state = "Idle · waiting for movement"
         self.prediction = "—"
@@ -33,12 +28,10 @@ class MovementController(QObject):
         self.gesture_updated = "—"
         self.gesture_status = "No live readings yet · update the Pi script"
         self.history = controller.db.get("movement_history", [])
-        self.auth_status = "An authentication gesture starts the OTP flow."
+        self.auth_status = "Administrator sign-in requires a password and OTP on the login page."
+        # Inert compatibility attributes for older callers. No codes are issued.
         self.demo_code = ""
-        self._gesture_until = 0
         self._challenge = None
-        self._generation = 0
-        self._last_request = -60
         self.expiry_timer = QTimer(self)
         self.expiry_timer.timeout.connect(self.expire_challenge)
         self.expiry_timer.start(1000)
@@ -48,10 +41,6 @@ class MovementController(QObject):
             self.gesture_seen = 0
             self.gesture_distance = None
             self.gesture_status = "Offline · no readings for 5 seconds"
-            self.changed.emit()
-        if self._challenge and time.monotonic() >= self._challenge["expires"]:
-            self.cancel_authentication()
-            self.auth_status = "OTP expired. Detect a new authentication gesture."
             self.changed.emit()
 
     @Slot(str)
@@ -68,11 +57,9 @@ class MovementController(QObject):
         self.changed.emit()
 
     def cancel_authentication(self):
-        self._generation += 1
-        self._gesture_until = 0
         self._challenge = None
         self.demo_code = ""
-        self.auth_status = "An authentication gesture starts the OTP flow."
+        self.auth_status = "Administrator sign-in requires a password and OTP on the login page."
         self.changed.emit()
 
     def close(self):
@@ -120,81 +107,21 @@ class MovementController(QObject):
             self.c.changed.emit()
         elif self.prediction == "AUTH_GESTURE":
             self.cancel_authentication()
-            self._gesture_until = time.monotonic() + 120
-            self.auth_status = "Gesture detected. Enter your registered username to request an OTP."
+            self.auth_status = "Gesture detected. Sign in with the administrator password and OTP on the login page."
             self.authentication_requested.emit()
         else:
             self.state = "Pass-by recorded · no access action"
         self.changed.emit()
 
     def request_otp(self, username):
-        now = time.monotonic()
-        username = username.strip()
-        if now >= self._gesture_until:
-            self.auth_status = "Detect a new authentication gesture first."
-        elif now - self._last_request < 30:
-            self.auth_status = "Wait 30 seconds before requesting another OTP."
-        elif username not in self.c.auth.users:
-            self.auth_status = "Unable to start authentication for this username."
-        else:
-            service = self.c._telegram_service()
-            code = f"{secrets.randbelow(1000000):06d}"
-            self._last_request = now
-            self._generation += 1
-            generation = self._generation
-            self._challenge = {"username": username, "code": code, "expires": now + 120,
-                               "attempts": 0, "ready": False}
-            self.demo_code = ""
-            if service.mode == "Mock":
-                # Never pass an OTP to the mock Telegram logger.
-                self._challenge["ready"] = True
-                self.demo_code = code
-                self.auth_status = "Demo OTP ready · mock mode does not send Telegram. Expires in 2 minutes."
-            else:
-                self.auth_status = "Sending OTP to the configured Telegram account…"
-                future = self.c.executor.submit(service.send_message,
-                    f"PetCare AI access code: {code}\nUsername: {username}\nExpires in 2 minutes.")
-                def done(result):
-                    try:
-                        success, status = result.result()
-                    except Exception:
-                        success, status = False, "Delivery failed"
-                    self.delivery_finished.emit(generation, success, status)
-                future.add_done_callback(done)
+        """Legacy entry point: movement/Telegram must never grant admin access."""
+        self.cancel_authentication()
+        self.auth_status = "Use the administrator login page: password, then OTP."
         self.changed.emit()
-
-    @Slot(int, bool, str)
-    def _delivered(self, generation, success, status):
-        if generation != self._generation or not self._challenge:
-            return
-        self._challenge["ready"] = success
-        self.auth_status = "OTP sent · expires in 2 minutes." if success else "OTP delivery failed: " + status
-        if not success:
-            self._challenge = None
-        self.changed.emit()
+        return False
 
     def verify_otp(self, code):
-        challenge = self._challenge
-        if not challenge or time.monotonic() >= challenge["expires"]:
-            self.cancel_authentication()
-            self.auth_status = "OTP expired or unavailable. Detect a new gesture."
-        elif not challenge["ready"]:
-            self.auth_status = "Wait for successful OTP delivery."
-        else:
-            challenge["attempts"] += 1
-            if hmac.compare_digest(challenge["code"], code.strip()):
-                username = challenge["username"]
-                self.cancel_authentication()
-                self.c.auth.session = Session(username, time.monotonic() + self.c.auth.session_seconds)
-                self.c.auth._event("MOVEMENT_OTP_LOGIN_SUCCESS")
-                self.auth_status = "Access granted · OTP verified."
-                self.authenticated.emit()
-                self.changed.emit()
-                return True
-            if challenge["attempts"] >= 5:
-                self.cancel_authentication()
-                self.auth_status = "Too many attempts. Detect a new gesture."
-            else:
-                self.auth_status = f"Invalid OTP · {5 - challenge['attempts']} attempts remaining."
+        self.cancel_authentication()
+        self.auth_status = "Movement codes cannot sign in to the administrator account."
         self.changed.emit()
         return False

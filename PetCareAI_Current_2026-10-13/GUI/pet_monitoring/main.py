@@ -167,6 +167,8 @@ def main(argv=None):
         help="Save matching Pi encryption keys once",
     )
 
+    parser.add_argument("--setup-admin", action="store_true",
+                        help="One-time local administrator password and Telegram OTP enrollment")
     args = parser.parse_args(argv)
 
     if args.setup_edc:
@@ -179,6 +181,17 @@ def main(argv=None):
     app = QApplication(sys.argv[:1])
     app.setApplicationName("PetCare AI")
     app.setStyle("Fusion")
+
+    if args.setup_admin:
+        from pet_monitoring.services.authentication_service import AuthenticationService
+        from pet_monitoring.ui.admin_setup import run_setup
+        from pet_monitoring.ui.theme import apply_theme
+        apply_theme(app, "Dark")
+        database = DatabaseService(args.database)
+        try:
+            return run_setup(AuthenticationService(database))
+        finally:
+            database.close()
 
     database = DatabaseService(args.database)
     controller = MonitoringController(database)

@@ -229,5 +229,8 @@ class MainWindow(QMainWindow):
         self.movement_dialog.activateWindow()
 
     def movement_authenticated(self):
+        # A movement signal is never an administrator authentication result.
         self.movement_dialog.hide()
-        self.logged_in()
+        if not self.c.auth.is_authenticated:
+            self.login_page.status.setText("Sign in with the administrator password and OTP.")
+            self.root.setCurrentIndex(0)

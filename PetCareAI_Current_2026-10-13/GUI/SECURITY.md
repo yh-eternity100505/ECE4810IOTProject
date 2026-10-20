@@ -41,19 +41,120 @@ Replay protection uses authenticated packet IDs and a five-minute timestamp wind
 
 ## Login and sessions
 
-The existing login page delegates credentials to `AuthenticationService` and receives a boolean outcome. Successful authentication creates an eight-hour in-memory session. The controller refuses acquisition and packet reception without a valid session. Expiry stops monitoring and returns the GUI to login; logout invalidates the session.
+There is exactly one administrator, `admin`. Legacy `authentication_users` records
+are never read for login and are removed from the monitoring database when setup
+completes. No demo password, password-only login, account creation or username
+provisioning remains. The old provisioning module routes to the same local setup
+wizard; it cannot replace credentials after enrollment.
 
-The initial demo account remains **admin / pet123**. The password is represented by a PBKDF2-HMAC-SHA256 hash with 600,000 iterations, never stored as a plaintext account value. New accounts use random 16-byte salts. Three consecutive failures create a local warning and security event; five failures temporarily block login attempts for 30 seconds. Those counters and sessions are local to this process and reset at restart; they are not a replacement for deployment authentication policy.
+Close the app and run `.\.venv-local\Scripts\python.exe main.py --setup-admin`
+locally. This mode opens only enrollment; Pi, receiver, hub and SSH services do
+not start. Choose and confirm an 8-1024 character password, enter your Telegram
+bot token and private positive numeric chat ID, request a code, verify it, save
+the eight recovery codes and confirm possession. Existing saved desktop alert
+credentials may prefill the form, but cannot be changed on the login page.
+Open the bot in Telegram and press Start before requesting the code. Enrollment
+expires after 15 minutes. Cancel discards its in-memory credentials.
 
-To change the account (including to `group5`), close the application and run:
+Passwords use Argon2id v19 with 64 MiB memory, three iterations, four lanes and a
+random 16-byte salt (32-byte hash). The authoritative administrator record lives
+in native OS storage: Windows Credential Manager (current user, local-machine
+persistence), macOS Keychain, or Linux Secret Service. Backends are selected
+explicitly, with no plaintext or file-keyring fallback. The bot token, fixed
+private chat ID, recovery hashes and counters use the same protected record.
+Windows replaces a single credential target, avoiding stale fallback records.
 
-```powershell
-.\.venv\Scripts\python.exe -m pet_monitoring.security.provision_account --username group5
-```
+Each Telegram OTP contains six cryptographically random digits and expires after
+at most 120 seconds. The app holds only an HMAC digest and delivery state in memory;
+it neither saves nor displays the code. It uses real HTTPS Telegram delivery even
+when monitoring alerts are in Mock mode. API failure, timeout or unsuccessful
+delivery cannot enable verification. Requests run outside the UI thread and
+callbacks from cancelled or replaced requests cannot restore a challenge.
 
-The command prompts twice for a hidden password and stores only its salt, hash, and iteration count. It replaces the single local account; the old demo credential will then stop working. Passwords are not passed in command-line arguments. This is a trusted local provisioning tool; protecting filesystem access and authorising account administration remain deployment responsibilities.
+Login requires a verified password before requesting or verifying the second
+factor. Persistent 30-second resend throttling and shared password/OTP failure
+counters survive restarts. Three failures raise a warning; five lock sign-in for
+30 seconds. Resending and restarting the password step do not reset attempts.
+A persisted challenge identifier invalidates codes from older requests, including
+requests in another app process. Challenge consumption is committed before the
+eight-hour in-memory session is issued. Logout and expiry invalidate challenges.
+Only a successfully delivered current code can sign in.
+
+Eight random 128-bit recovery codes are shown once and exported only on request.
+The app stores SHA-256 hashes, never recoverable codes. Each recovery code replaces
+one Telegram OTP after the password, is consumed before a session is issued, and
+works when Telegram is unavailable. A recovery code alone cannot reset the password
+or repair a lost vault record. The installation mutex serializes OTP and recovery consumption
+across app processes; failed persistence never grants a session.
+
+Existing version-1 records from completed authenticator enrollments remain usable
+with their original TOTP and recovery codes; no record is silently replaced and
+setup does not reopen. New enrollment from the local wizard creates a version-2
+Telegram record at the same administrator credential target. It creates no second
+account. Legacy TOTP verification preserves the previous interval/replay checks.
+
+A permanent `data/admin_setup.lock` marker binds the installation to its vault
+record. It is independent of the monitoring database, so `--database` cannot create
+a second account. Completion reserves the marker before committing credentials;
+a crash or failed commit leaves setup locked. A missing or corrupted credential,
+missing/mismatched marker, or unavailable OS store blocks login and setup rather
+than offering enrollment again. Restore the original credential-store entry and
+matching marker through trusted OS/local backup recovery. There is intentionally
+no reset for missing credentials or recovery bypass. Keep recovery-code exports private.
+
+This protects the application login under the current OS account. It does not
+protect against an attacker who controls that OS account, can edit application
+code, or deliberately erases both the vault record and installation marker. Files,
+OS account access and backups must retain their normal OS protections. A new
+installation or OS account is a separate trust boundary, not account registration.
+
+Movement events and movement-panel codes cannot create administrator sessions. The
+movement panel remains available for Pi connection diagnostics and sensor history;
+all administrator entry still requires the normal password and the enrolled
+second factor (Telegram OTP or recovery code for new enrollment). Receiver, encrypted transport, SSH launch, and phone telemetry
+continue through their existing paths. This change covers the desktop GUI's admin;
+the standalone Pi phone hub retains its separate existing account mechanism.
+
+Implementation references: [Argon2-cffi](https://argon2-cffi.readthedocs.io/en/stable/api.html),
+[Telegram Bot API](https://core.telegram.org/bots/api#sendmessage),
+[PyOTP for existing authenticator records](https://pyauth.github.io/pyotp/), and
+[native credential backends](https://keyring.readthedocs.io/en/stable/).
+
+## Forgotten password
+
+The login card's **Forgot password?** dialog implements recovery for existing
+Telegram-enrolled administrators. It does not require the old password, create
+an account, modify the setup marker, or reopen enrollment. It requires two proofs:
+an unused saved recovery code AND a successfully delivered Telegram reset OTP.
+Neither proof alone can reset a password. Legacy authenticator-only records are
+not silently migrated or offered a weaker recovery method.
+
+An unused recovery-code digest must match before a reset message is sent. The bot
+and destination come only from the OS-protected administrator record, never from
+reset-form inputs or mutable monitoring settings. The reset OTP is generated
+independently from login codes, explicitly labelled PASSWORD RESET, and valid for
+at most two minutes. Request throttling and failed-attempt counters are shared
+with login and persist across restarts. Failed delivery, expired codes, cancellation
+(including before the worker starts), replaced requests, missing/corrupt credentials
+and failed persistence do not permit reset. Network requests do not block Qt or
+access the SQLite connection from the worker.
+
+The reset challenge binds the enrollment ID, current password-hash version,
+recovery-code digest and OTP request ID. Completion rechecks every binding under
+the installation mutex, then atomically replaces the Argon2id password hash,
+consumes the recovery code, invalidates the OTP and clears failed-attempt state in
+the existing native credential record. The username, enrollment, remaining recovery
+codes and Telegram configuration are preserved. Setup remains disabled. Success
+returns to normal sign-in and never creates a session.
+
+Sessions and password-stage challenges bind the password-hash version. Every
+session authorization check reads the current native credential version, so a reset
+also expires sessions in other GUI processes. Previously verified old passwords
+cannot complete their pending second-factor step. Passwords, OTP digits, recovery
+codes and bot tokens are not included in authentication events or error logs.
 
 ## Dashboard and settings
+
 
 - The dashboard has a compact Security status card for authentication, active encryption/backend, integrity, accepted/received packets, rejected packets, and last verification.
 - The global status bar shows Secure, Authentication Required, Verification Failed, or Security Module Offline.
