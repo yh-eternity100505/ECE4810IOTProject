@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QPushButton
 from .theme import current_colors
 
 ICONS = {
+    "Door Authentication": '<path d="M4 22V2h13v20M2 22h19M7 22V5l10-3"/><circle cx="13" cy="13" r=".8" fill="COLOR"/>',
     "Sensor Hub": '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M8 2v4m4-4v4m4-4v4M8 18v4m4-4v4m4-4v4M2 8h4m-4 4h4m-4 4h4M18 8h4m-4 4h4m-4 4h4"/>',
     "Overview": '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
     "Live Sensors": '<circle cx="12" cy="12" r="1.5" fill="COLOR"/><path d="M7 7a7 7 0 0 0 0 10m10-10a7 7 0 0 1 0 10M3.5 3.5a12 12 0 0 0 0 17m17-17a12 12 0 0 1 0 17"/>',

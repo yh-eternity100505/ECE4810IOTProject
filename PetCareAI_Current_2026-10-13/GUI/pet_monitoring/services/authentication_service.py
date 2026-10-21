@@ -242,6 +242,20 @@ class AuthenticationService:
         except (OSError, ValueError, TypeError):
             return "", ""
 
+    def notification_destination(self):
+        """Return the verified enrolled Telegram pair for explicitly enabled alerts.
+
+        Never exposes it in widgets/logs or changes administrator authentication.
+        """
+        try:
+            with self._exclusive():
+                record = self._load()
+                if record is not None and record['v'] == 2:
+                    return record['telegram_token'], record['telegram_chat_id']
+        except STORAGE_ERRORS:
+            pass
+        return '', ''
+
     @staticmethod
     def _validate_telegram(token, chat_id):
         if not isinstance(token, str) or not re.fullmatch(r"[0-9]{5,20}:[A-Za-z0-9_-]{20,100}", token):
@@ -506,6 +520,40 @@ class AuthenticationService:
                                        credential_version=self._credential_version(record))
                 self.last_error = ""
                 self._event("LOGIN_SUCCESS")
+                return True
+        except STORAGE_ERRORS:
+            self._blocked()
+            return False
+
+    def complete_gesture_login(self, challenge, code, credential_version):
+        """Consume the delivered, registered gesture OTP before issuing a session.
+
+        The movement controller separately enforces the fresh gesture window.
+        An unregistered challenge or a movement signal alone cannot sign in.
+        """
+        try:
+            with self._exclusive():
+                record = self._load()
+                if (record is None or record['v'] != 2 or challenge is None
+                        or record.get('gesture_otp_id') != challenge.identifier
+                        or self._credential_version(record) != credential_version
+                        or time.time() < record['locked_until']):
+                    self.last_error = "Gesture sign-in is unavailable. Perform the gesture again."
+                    return False
+                if not self._check_otp(challenge, code):
+                    self._failure(record)
+                    return False
+                record['gesture_otp_id'] = ''
+                record['otp_id'] = ''
+                record['failures'] = 0
+                record['locked_until'] = 0
+                self._save(record)  # Consume proof before creating the session.
+                self.cancel_login()
+                self.cancel_password_reset()
+                self.session = Session('admin', time.monotonic()+self.session_seconds,
+                                       credential_version=self._credential_version(record))
+                self.last_error = ''
+                self._event('LOGIN_SUCCESS_GESTURE_OTP')
                 return True
         except STORAGE_ERRORS:
             self._blocked()

@@ -34,6 +34,9 @@ class SettingsPage(Page):
         self.telegram_enabled = QCheckBox("Enable Telegram notifications")
         self.telegram_enabled.setChecked(s["telegram_enabled"])
         form.addRow("", self.telegram_enabled)
+        self.use_admin_telegram = QCheckBox("Use verified administrator Telegram when alert token and chat are blank")
+        self.use_admin_telegram.setChecked(s.get("telegram_use_admin", True))
+        form.addRow("", self.use_admin_telegram)
         self.clear_token = QCheckBox("Remove saved bot token on save")
         form.addRow("", self.clear_token)
         telegram.box.addLayout(form)
@@ -155,7 +158,7 @@ class SettingsPage(Page):
             return
         s.update(mock_mode=self.mock.isChecked(), refresh_seconds=self.refresh_rate.value(), theme=self.theme.currentText(),
                  telegram_mode=self.telegram_mode.currentText(), telegram_chat_id=self.chat.text().strip(),
-                 telegram_enabled=self.telegram_enabled.isChecked(), anomaly_threshold=self.anomaly.value() / 100)
+                 telegram_enabled=self.telegram_enabled.isChecked(), telegram_use_admin=self.use_admin_telegram.isChecked(), anomaly_threshold=self.anomaly.value() / 100)
         s["thresholds"] = {key: field.value() for key, field in self.thresholds.items()}
         s["notifications"] = {key: field.isChecked() for key, field in self.notifications.items()}
         s["wellness_weights"] = {key: field.value() / 100 for key, field in self.weights.items()}

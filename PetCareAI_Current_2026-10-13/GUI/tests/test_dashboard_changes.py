@@ -52,7 +52,7 @@ class DashboardChangesTests(unittest.TestCase):
 
     def test_unique_overview_history_log_and_removed_movement_navigation(self):
         names = [nav.text() for nav in self.window.nav_buttons]
-        self.assertEqual(len(names), 8)
+        self.assertEqual(len(names), 9)
         self.assertEqual(sum("Overview" in name for name in names), 1)
         self.assertFalse(any("Activity Analysis" in name for name in names))
         self.assertTrue(any("History" in name for name in names))
@@ -242,3 +242,80 @@ class DashboardChangesTests(unittest.TestCase):
             server.join(timeout=2)
             hub.executor.shutdown(wait=True)
             db.conn.close()
+
+    def test_login_has_no_gesture_entry_or_automatic_gesture_popup(self):
+        self.assertFalse(hasattr(self.window.login_page, 'gesture_button'))
+        self.window.movement.process({'type':'MOVEMENT_RESULT','prediction':'AUTH_GESTURE','confidence':.94})
+        self.assertFalse(self.window.movement_dialog.isVisible())
+        self.assertEqual(self.window.root.currentIndex(),0)
+        self.assertFalse(self.c.auth.is_authenticated)
+        self.assertTrue(any(nav.text() == 'Door Authentication' for nav in self.window.nav_buttons))
+
+    def test_dashboard_door_otp_keeps_dedicated_page_open(self):
+        import re
+        from pet_monitoring.services.authentication_service import AuthenticationService
+        from tests.auth_support import MemoryStore, PASSWORD
+        from tests.test_telegram_admin import TOKEN, CHAT
+        from tests.test_pi_hub_startup import wait_for
+        delivered = []
+        auth = AuthenticationService(store=MemoryStore(), marker_path=Path(self.temp.name)/'gesture-login.lock',
+                                     telegram_sender=lambda token, chat, text: (delivered.append(text) or True, 'Sent'))
+        auth.begin_setup(PASSWORD, PASSWORD, telegram_token=TOKEN, telegram_chat_id=CHAT)
+        self.assertTrue(auth.request_setup_otp()[0])
+        auth.verify_setup_otp(re.search(r'code: ([0-9]{6})', delivered[-1]).group(1))
+        auth.complete_setup(True)
+        self.c.auth = auth
+        self.window.login_page.auth = auth
+        self.assertTrue(auth.authenticate('admin', PASSWORD))
+        self.assertTrue(auth.request_login_otp()[0])
+        login_code = re.search(r'code: ([0-9]{6})', delivered[-1]).group(1)
+        self.assertTrue(auth.verify_second_factor(login_code))
+        self.window.logged_in()
+        movement = self.window.movement
+        dialog = self.window.door_auth_page
+        movement.process({'type':'MOVEMENT_RESULT','prediction':'AUTH_GESTURE','confidence':.95})
+        self.assertTrue(auth.is_authenticated)
+        self.assertEqual(self.window.page_stack.currentIndex(),8)
+        dialog.username.setText('admin')
+        dialog.request_otp_button.click()
+        self.assertTrue(wait_for(lambda: not dialog.request.busy))
+        self.assertTrue(auth.is_authenticated)
+        code = re.search(r'code: ([0-9]{6})', delivered[-1]).group(1)
+        wrong = '000000' if code != '000000' else '111111'
+        dialog.otp.setText(wrong)
+        dialog.verify_otp_button.click()
+        self.assertTrue(auth.is_authenticated)
+        self.assertEqual(self.window.page_stack.currentIndex(),8)
+        dialog.otp.setText(code)
+        dialog.verify_otp_button.click()
+        APP.processEvents()
+        self.assertTrue(auth.is_authenticated)
+        self.assertEqual(self.window.root.currentIndex(),1)
+        self.assertEqual(self.window.page_stack.currentIndex(),8)
+        self.assertIn('Door authentication verified',self.window.statusBar().currentMessage())
+        self.window.logout()
+        self.assertFalse(movement.verify_otp(code))
+        self.assertFalse(auth.is_authenticated)
+        self.assertEqual(self.window.root.currentIndex(),0)
+
+    def test_dashboard_door_section_reuses_gesture_flow_and_door_icon(self):
+        from tests.auth_support import configure_auth, login
+        from pet_monitoring.ui.navigation import ICONS
+        configure_auth(self.c, self.temp.name)
+        login(self.c.auth)
+        self.window.logged_in()
+        button = self.window.nav_buttons[8]
+        self.assertEqual(button.text(), 'Door Authentication')
+        self.assertIn(button.text(), ICONS)
+        button.click()
+        self.assertEqual(self.window.page_stack.currentIndex(),8)
+        page = self.window.door_auth_page
+        self.assertIs(page.m, self.window.movement_dialog.m)
+        self.assertTrue(page.embedded)
+        self.window.movement.process({'type':'MOVEMENT_RESULT','prediction':'AUTH_GESTURE','confidence':.94})
+        self.assertEqual(self.window.page_stack.currentIndex(),8)
+        self.assertFalse(self.window.movement_dialog.isVisible())
+        self.assertTrue(page.request_otp_button.isEnabled())
+        # Verified sign-in signal must not navigate away from the dedicated section.
+        self.window.movement_authenticated()
+        self.assertEqual(self.window.page_stack.currentIndex(),8)

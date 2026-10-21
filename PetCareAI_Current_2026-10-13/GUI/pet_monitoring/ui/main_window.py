@@ -36,6 +36,8 @@ class MainWindow(QMainWindow):
         self.root = QStackedWidget()
         self.setCentralWidget(self.root)
         self.login_page = LoginPage(controller.auth, controller.db)
+        self.movement.authentication_requested.connect(self.show_movement)
+        self.movement_dialog.sign_in_requested.connect(self.continue_gesture_sign_in)
         self.root.addWidget(self.login_page)
         shell = QWidget()
         shell.setObjectName("shell")
@@ -60,7 +62,9 @@ class MainWindow(QMainWindow):
         self.pages = [DashboardPage(controller), LiveMonitoringPage(controller),
                       HistoryPage(controller, self.change_log), AlertsPage(controller), PetProfilePage(controller), SettingsPage(controller),
                       HubPage(self.hub, self.show_movement, self.movement),
-                      SecurityInspector(self.movement.receiver)]
+                      SecurityInspector(self.movement.receiver),
+                      MovementDialog(self.movement, embedded=True)]
+        self.door_auth_page = self.pages[8]
         self.pages[1].bind_live_inputs(self.hub, self.movement)
         from pet_monitoring.services.hub_sync import HubSync
         self.hub_sync = HubSync(controller, self.hub, self.movement.receiver, self, change_log=self.change_log)
@@ -76,7 +80,7 @@ class MainWindow(QMainWindow):
         self.pages[0].box.insertWidget(0, notice)
         self.hub.changed.connect(lambda: notice.setVisible(self.hub.mode != "Live Pi"))
         notice.setVisible(self.hub.mode != "Live Pi")
-        names = ["Overview", "Live Sensors", "History", "Alerts", "Pet Profile", "Settings", "Sensor Hub", "Security Inspector"]
+        names = ["Overview", "Live Sensors", "History", "Alerts", "Pet Profile", "Settings", "Sensor Hub", "Security Inspector", "Door Authentication"]
         self.nav_buttons = []
         self.navigation = QButtonGroup(self)
         self.navigation.setExclusive(True)
@@ -228,13 +232,30 @@ class MainWindow(QMainWindow):
         self.phone_app_button.setEnabled(False)
 
     def show_movement(self):
-        self.movement_dialog.show()
-        self.movement_dialog.raise_()
-        self.movement_dialog.activateWindow()
+        # Door authentication is available only inside the signed-in dashboard.
+        if self.root.currentIndex() == 1 and self.c.auth.is_authenticated:
+            self.navigate(8)
+
+    def continue_gesture_sign_in(self):
+        self.movement_dialog.hide()
+        if self.c.auth.is_authenticated:
+            return
+        self.root.setCurrentIndex(0)
+        self.login_page.status.setText("Gesture recognised. Complete administrator password and OTP verification.")
+        if self.c.auth.awaiting_otp:
+            self.login_page.otp.setFocus()
+        else:
+            self.login_page.password.setFocus()
 
     def movement_authenticated(self):
-        # A movement signal is never an administrator authentication result.
-        self.movement_dialog.hide()
+        # Only a verified, consumed Telegram OTP can create this session.
         if not self.c.auth.is_authenticated:
-            self.login_page.status.setText("Sign in with the administrator password and OTP.")
             self.root.setCurrentIndex(0)
+            return
+        self.movement_dialog.hide()
+        if self.root.currentIndex() == 1:
+            self.statusBar().showMessage("Door authentication verified with gesture and Telegram OTP", 10000)
+            return
+        self.login_page.reset()
+        self.logged_in()
+        self.statusBar().showMessage("Signed in with gesture and Telegram OTP", 10000)
