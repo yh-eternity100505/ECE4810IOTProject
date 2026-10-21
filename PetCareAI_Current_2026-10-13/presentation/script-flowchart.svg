@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080"><defs><marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10" fill="#79929b"/></marker></defs><rect width="1920" height="1080" fill="#0e232b"/><style>text{font-family:Segoe UI,Arial,sans-serif;fill:#f4eee7}.title{font-size:42px;font-weight:700}.sub{font-size:23px;fill:#b7c7cc}.h{font-size:27px;font-weight:600}.b{font-size:22px}.note{font-size:19px;fill:#b7c7cc}.edge{fill:none;stroke:#79929b;stroke-width:3;marker-end:url(#a)}.auth{fill:none;stroke:#d3a77f;stroke-width:3;stroke-dasharray:8 6;marker-end:url(#a)}</style><text x="75" y="66" class="title">PetCare AI - From sensor readings to owner awareness</text><text x="75" y="104" class="sub">Camera-free monitoring | Entrance movement recognition | Protected administrator access</text>
+<rect x="660" y="142" width="600" height="90" rx="18" fill="#263d47" stroke="#56707b" stroke-width="1.5"/>
+<text x="960.0" y="179" text-anchor="middle" class="h">Raspberry Pi: acquire ultrasonic readings</text>
+<text x="960.0" y="214" text-anchor="middle" class="b">Five sensors; no camera</text>
+<path d="M960 232V260H340V280" class="edge"/>
+<path d="M960 232V280" class="edge"/>
+<path d="M960 232V260H1580V280" class="edge"/>
+<rect x="75" y="280" width="530" height="135" rx="18" fill="#263d47" stroke="#56707b" stroke-width="1.5"/>
+<text x="340.0" y="317" text-anchor="middle" class="h">Food and water channels</text>
+<text x="340.0" y="352" text-anchor="middle" class="b">Measure distances to contents</text>
+<text x="340.0" y="381" text-anchor="middle" class="b">GUI calibration converts them to levels</text>
+<rect x="695" y="280" width="530" height="135" rx="18" fill="#263d47" stroke="#56707b" stroke-width="1.5"/>
+<text x="960.0" y="317" text-anchor="middle" class="h">Resting and toilet channels</text>
+<text x="960.0" y="352" text-anchor="middle" class="b">Apply configured proximity thresholds</text>
+<text x="960.0" y="381" text-anchor="middle" class="b">Observe presence and completed visits</text>
+<rect x="1315" y="280" width="530" height="135" rx="18" fill="#263d47" stroke="#56707b" stroke-width="1.5"/>
+<text x="1580.0" y="317" text-anchor="middle" class="h">Entrance movement channel</text>
+<text x="1580.0" y="352" text-anchor="middle" class="b">Extract 14 features; run KNN</text>
+<text x="1580.0" y="381" text-anchor="middle" class="b">Pass-by / approach-stay / auth gesture</text>
+<path d="M340 415V445H960" fill="none" stroke="#79929b" stroke-width="3"/>
+<path d="M960 415V475" class="edge"/>
+<path d="M1580 415V445H960" fill="none" stroke="#79929b" stroke-width="3"/>
+<rect x="660" y="475" width="600" height="110" rx="18" fill="#263d47" stroke="#56707b" stroke-width="1.5"/>
+<text x="960.0" y="512" text-anchor="middle" class="h">Protect and validate sensor messages</text>
+<text x="960.0" y="547" text-anchor="middle" class="b">EDC encryption + HMAC authentication</text>
+<text x="960.0" y="576" text-anchor="middle" class="b">Verify integrity, freshness and replay checks</text>
+<path d="M960 585V625" class="edge"/>
+<rect x="660" y="625" width="600" height="110" rx="18" fill="#263d47" stroke="#56707b" stroke-width="1.5"/>
+<text x="960.0" y="662" text-anchor="middle" class="h">Desktop GUI and timestamped history</text>
+<text x="960.0" y="697" text-anchor="middle" class="b">Live readings, calibrated levels and activity</text>
+<text x="960.0" y="726" text-anchor="middle" class="b">Record accepted data; show missing/offline states</text>
+<rect x="75" y="625" width="450" height="110" rx="18" fill="#514236" stroke="#56707b" stroke-width="1.5"/>
+<text x="300.0" y="662" text-anchor="middle" class="h">Administrator access check</text>
+<text x="300.0" y="697" text-anchor="middle" class="b">Password then Telegram OTP</text>
+<text x="300.0" y="726" text-anchor="middle" class="b">Valid verification opens the dashboard</text>
+<path d="M525 680H650" class="auth"/>
+<text x="300" y="770" text-anchor="middle" class="note">Dashed line = access control, not sensor flow</text>
+<path d="M960 735V790H620V825" class="edge"/>
+<path d="M960 735V790H1350V825" class="edge"/>
+<rect x="320" y="825" width="600" height="110" rx="18" fill="#263d47" stroke="#56707b" stroke-width="1.5"/>
+<text x="620.0" y="862" text-anchor="middle" class="h">Remote phone interface</text>
+<text x="620.0" y="897" text-anchor="middle" class="b">View status and pet information</text>
+<text x="620.0" y="926" text-anchor="middle" class="b">Desktop relays telemetry to the Pi web hub</text>
+<rect x="1050" y="825" width="600" height="110" rx="18" fill="#263d47" stroke="#56707b" stroke-width="1.5"/>
+<text x="1350.0" y="862" text-anchor="middle" class="h">Selected Telegram notifications</text>
+<text x="1350.0" y="897" text-anchor="middle" class="b">Entrance and configured monitoring alerts</text>
+<text x="1350.0" y="926" text-anchor="middle" class="b">Owner receives information that needs attention</text>
+<text x="960" y="994" text-anchor="middle" class="h">One integrated, low-cost design: monitoring + movement recognition + cybersecurity</text>
+<text x="960" y="1035" text-anchor="middle" class="note">Current-code scope: food/water levels are not eating/drinking visits; a gesture does not bypass admin login; phone LAN access is HTTP.</text></svg>

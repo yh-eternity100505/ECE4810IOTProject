@@ -96,7 +96,7 @@ class HubPage(Page):
     def sync_from_hub(self, state):
         """Show the hub's sensor setup: roles, thresholds, calibration and physical locations."""
         if not state:
-            self.sync_note.setText("Not synced with the Pi hub yet. When connected, the hub's sensor setup replaces local changes.")
+            self.sync_note.setText("Not connected yet. GUI sensor saves remain pending until the Pi confirms synchronisation.")
             return
         facing = {0: "faces back", 45: "faces back-right", 90: "faces right", 135: "faces front-right", 180: "faces front",
                   -180: "faces front", -135: "faces front-left", -90: "faces left", -45: "faces back-left"}
@@ -111,8 +111,8 @@ class HubPage(Page):
             self.thresholds[sensor_id].setValue(self.hub.thresholds[sensor_id])
             self.thresholds[sensor_id].setEnabled(self.hub.mapping[sensor_id] not in {"eat", "water"})
         self.calibration.reload()
-        self.sync_note.setText(f"Synced from the Pi hub at {state['time']}. Change sensors, calibration and locations in the phone app; "
-                               "the hub's setup replaces local edits while connected.")
+        self.sync_note.setText(f"Synced from the Pi hub at {state['time']}. Save sensors and calibration in either app; "
+                               "the latest save accepted by the Pi updates both apps.")
 
     def save(self):
         self.hub.save_configuration({key: combo.currentData() for key, combo in self.combos.items()},

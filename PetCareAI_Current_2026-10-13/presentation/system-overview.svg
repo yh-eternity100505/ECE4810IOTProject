@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10" fill="#53717c"/></marker></defs>
+<rect width="1600" height="900" fill="#f8fafb"/>
+<style>text{font-family:Segoe UI,Arial,sans-serif;fill:#17313b}.title{font-size:38px;font-weight:700}.sub{font-size:21px;fill:#53717c}.heading{font-size:25px;font-weight:650}.body{font-size:20px}.small{font-size:17px;fill:#53717c}.line{fill:none;stroke:#53717c;stroke-width:3;marker-end:url(#arrow)}</style>
+<text x="70" y="70" class="title">PetCare AI ? System Overview</text>
+<text x="70" y="108" class="sub">Five ultrasonic sensors ? Local interpretation ? Protected monitoring ? Owner notifications</text>
+<rect x="70" y="180" width="350" height="170" rx="18" fill="#ffffff" stroke="#d6e0e4" stroke-width="2"/>
+<text x="94" y="218" class="heading">1. Ultrasonic sensing</text>
+<text x="94" y="256" class="body">S1 / S3: food and water levels</text>
+<text x="94" y="284" class="body">S2 / S4: sleep and toilet presence</text>
+<text x="94" y="312" class="body">S5: entrance movement</text>
+<rect x="490" y="180" width="430" height="170" rx="18" fill="#ffffff" stroke="#d6e0e4" stroke-width="2"/>
+<text x="514" y="218" class="heading">2. Raspberry Pi processing</text>
+<text x="514" y="256" class="body">Thresholds + configurable area mapping</text>
+<text x="514" y="284" class="body">Occupancy timing and completed visits</text>
+<text x="514" y="312" class="body">14-feature KNN entrance classification</text>
+<rect x="1000" y="180" width="530" height="170" rx="18" fill="#ffffff" stroke="#d6e0e4" stroke-width="2"/>
+<text x="1024" y="218" class="heading">3. Protected data transfer</text>
+<text x="1024" y="256" class="body">EDC encryption + HMAC integrity checks</text>
+<text x="1024" y="284" class="body">Timestamp / nonce / replay validation</text>
+<text x="1024" y="312" class="body">Verified messages reach the desktop</text>
+<path d="M420 265H480" class="line"/>
+<path d="M920 265H990" class="line"/>
+<rect x="1000" y="450" width="530" height="170" rx="18" fill="#eaf1f4" stroke="#d6e0e4" stroke-width="2"/>
+<text x="1024" y="488" class="heading">4. Desktop GUI + SQLite</text>
+<text x="1024" y="526" class="body">Live status, levels and activity overview</text>
+<text x="1024" y="554" class="body">Timestamped history and settings changes</text>
+<text x="1024" y="582" class="body">Administrator access: password + OTP</text>
+<path d="M1265 350V440" class="line"/>
+<rect x="70" y="450" width="350" height="170" rx="18" fill="#ffffff" stroke="#d6e0e4" stroke-width="2"/>
+<text x="94" y="488" class="heading">5. Owner notifications</text>
+<text x="94" y="526" class="body">Selected entrance and monitoring alerts</text>
+<text x="94" y="554" class="body">Telegram delivery over HTTPS</text>
+<text x="94" y="582" class="body">Login codes delivered through Telegram</text>
+<path d="M1000 490H960V400H445V535H430" class="line"/>
+<rect x="490" y="450" width="430" height="170" rx="18" fill="#ffffff" stroke="#d6e0e4" stroke-width="2"/>
+<text x="514" y="488" class="heading">6. Phone web interface</text>
+<text x="514" y="526" class="body">Pet details, sensor status and history</text>
+<text x="514" y="554" class="body">Telemetry relayed over an SSH tunnel</text>
+<text x="514" y="582" class="body">Phone LAN access currently uses HTTP</text>
+<path d="M1090 620V670H705V630" class="line"/>
+<text x="735" y="657" class="small">Desktop-to-Pi hub relay</text>
+<rect x="70" y="735" width="1460" height="110" rx="16" fill="#edf2ed"/>
+<text x="96" y="772" class="body">Purpose: camera-free pet routine monitoring with an additional entrance-security function.</text>
+<text x="96" y="806" class="small">Scope: gesture KNN is implemented; pet-routine ML is not trained. Food/water levels do not measure eating/drinking visits.</text>
+</svg>

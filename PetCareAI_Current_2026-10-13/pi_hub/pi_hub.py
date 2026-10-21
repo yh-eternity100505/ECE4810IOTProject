@@ -384,19 +384,64 @@ class Hub:
         return json.dumps(message, allow_nan=False).encode() + b"\n"
 
     def save_sensor_config(self, mapping, thresholds):
-        if self.dashboard_source:
-            raise ValueError("Sensor assignments are controlled by the desktop GUI")
         if set(mapping) != set(DEFAULT_MAPPING) or any(v not in MODES for v in mapping.values()):
             raise ValueError("Assign Food, Bed, Water or Litter to sensors 1-4")
         if set(thresholds) != set(DEFAULT_MAPPING) or not all(finite(v, 1, 400) for v in thresholds.values()):
             raise ValueError("Thresholds must be 1-400 cm")
-        with self.lock:
+        with self.lock, self.settings.lock:
             self._advance(time.monotonic())
-            self.sensors.update(mapping=dict(mapping), thresholds={k: float(v) for k, v in thresholds.items()},
-                                revision=self.sensors["revision"] + 1)
+            sensors = self.settings.data["sensors"]
+            sensors.update(mapping=dict(mapping), thresholds={k: float(v) for k, v in thresholds.items()},
+                           revision=sensors["revision"] + 1)
+            self.settings.data["settings_version"] = self.settings.data.get("settings_version", 0) + 1
             self.settings.save()
             self.acknowledged = None
             self._reset_states()
+
+    def apply_desktop_settings(self, message):
+        """Trusted localhost SSH control channel; sensor secrets are never accepted here."""
+        if not self.dashboard_source:
+            raise ValueError("Settings control requires the GUI-managed SSH hub")
+        op = message.get("operation_id")
+        if not isinstance(op, str) or len(op) != 32 or any(c not in "0123456789abcdef" for c in op):
+            raise ValueError("Invalid settings operation")
+        if set(message) - {"type", "operation_id", "configuration", "calibration"}:
+            raise ValueError("Unsupported settings field")
+        config, calibration = message.get("configuration"), message.get("calibration", {})
+        if config is not None:
+            if not isinstance(config, dict) or set(config) != {"mapping", "thresholds"}:
+                raise ValueError("Invalid settings configuration")
+            mapping, thresholds = config["mapping"], config["thresholds"]
+            if (not isinstance(mapping, dict) or set(mapping) != set(DEFAULT_MAPPING)
+                    or any(not isinstance(v, str) or v not in MODES for v in mapping.values()) or not isinstance(thresholds, dict)
+                    or set(thresholds) != set(DEFAULT_MAPPING) or not all(finite(v, 1, 400) for v in thresholds.values())):
+                raise ValueError("Invalid sensor settings")
+        if not isinstance(calibration, dict) or set(calibration) - set(DEFAULT_MAPPING):
+            raise ValueError("Invalid calibration sensors")
+        for value in calibration.values():
+            if value is not None and (not isinstance(value, dict) or set(value) != {"full_cm", "empty_cm"}
+                    or not finite(value["full_cm"], .1, 400) or not finite(value["empty_cm"], .1, 400)
+                    or value["full_cm"] >= value["empty_cm"]):
+                raise ValueError("Invalid calibration values")
+        if config is None and not calibration:
+            raise ValueError("Empty settings update")
+        with self.lock, self.settings.lock:
+            data = self.settings.data
+            # Persist deduplication so reconnect/retry cannot replay an older save.
+            applied = data.setdefault("desktop_settings_operations", [])
+            if op not in applied:
+                if config is not None:
+                    data["sensors"].update(mapping=dict(mapping), thresholds=dict(thresholds),
+                                           revision=data["sensors"]["revision"] + 1)
+                for sensor, value in calibration.items():
+                    if value is None:
+                        data["calibration"].pop(sensor, None)
+                    else:
+                        data["calibration"][sensor] = dict(value)
+                data["settings_version"] = data.get("settings_version", 0) + 1
+                applied.append(op)
+                self.settings.save()
+            return {"type": "SETTINGS_ACK", "operation_id": op, "snapshot": self.sync_message()}
 
     def _reset_states(self):
         for state in self.states.values():
@@ -608,7 +653,7 @@ class Hub:
 
     def sync_message(self):
         """Everything a desktop dashboard mirrors from the hub: the monitored pet and the hardware setup."""
-        with self.lock:
+        with self.lock, self.settings.lock:
             data = self.settings.data
             pet = data["pet"]
             sensors = {}
@@ -618,10 +663,10 @@ class Hub:
                     entry["role"] = "entrance"
                 else:
                     calibration = data["calibration"].get(sensor_id)
-                    entry.update(role=self.sensors["mapping"][sensor_id], threshold_cm=self.sensors["thresholds"][sensor_id],
+                    entry.update(role=data["sensors"]["mapping"][sensor_id], threshold_cm=data["sensors"]["thresholds"][sensor_id],
                                  calibration={"full_cm": calibration["full_cm"], "empty_cm": calibration["empty_cm"]} if calibration else None)
                 sensors[sensor_id] = entry
-            return {"type": "HUB_SYNC", "revision": self.sensors["revision"],
+            return {"settings_version": data.get("settings_version", 0), "type": "HUB_SYNC", "revision": data["sensors"]["revision"],
                     "pet": {k: pet.get(k) for k in ("name", "animal", "breed", "sex", "birthday", "weight_kg", "avatar",
                                                     "baseline_sleep_hours", "baseline_toilet_visits")},
                     "pets_total": len(data["pets"]), "sensors": sensors}
@@ -1019,6 +1064,10 @@ class SensorLink(threading.Thread):
                     text = line.decode("utf-8")
                     if self.hub.dashboard_source:
                         source = json.loads(text)
+                        if isinstance(source, dict) and source.get("type") == "DASHBOARD_SETTINGS":
+                            ack = self.hub.apply_desktop_settings(source)
+                            client.sendall(json.dumps(ack, allow_nan=False).encode() + b"\n")
+                            continue
                         if isinstance(source, dict) and source.get("type") == "DASHBOARD_SOURCE":
                             self.hub.dashboard_configuration(source)
                             continue
@@ -1631,7 +1680,7 @@ class Handler(BaseHTTPRequestHandler):
         s = self.hub.settings.data
         t = s["telegram"]
         self._json({"pet": s["pet"], "pets": s["pets"], "monitored_pet": s["monitored_pet"], "reminders": s["reminders"],
-                    "layout": s["sensor_layout"], "pins": SENSOR_PINS, "avatars": AVATARS, "reminder_kinds": REMINDER_KINDS, "repeat_days": REPEAT_DAYS, "sensors": self.hub.sensors, "calibration": s["calibration"],
+                    "layout": s["sensor_layout"], "pins": SENSOR_PINS, "avatars": AVATARS, "reminder_kinds": REMINDER_KINDS, "repeat_days": REPEAT_DAYS, "sensors": s["sensors"], "calibration": s["calibration"],
                     "dashboard_source": self.hub.dashboard_source,
                     "notifications": s["notifications"], "modes": MODES, "default_thresholds": MODE_THRESHOLDS, "mirror": s["mirror"],
                     "telegram": {"enabled": t["enabled"], "chat_id": t["chat_id"], "has_token": bool(t["token"])}})
@@ -1647,8 +1696,6 @@ class Handler(BaseHTTPRequestHandler):
 
     def post_sensors(self):
         self._user()
-        if self.hub.dashboard_source:
-            raise ApiError(409, "Change sensor assignments in the desktop GUI")
         body = self._body()
         self.hub.save_sensor_config({str(k): v for k, v in body["mapping"].items()},
                                     {str(k): v for k, v in body["thresholds"].items()})
@@ -1669,6 +1716,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not finite(full, 0.1, 400) or not finite(empty, 0.1, 400) or not full < empty:
                     raise ApiError(400, "The empty distance must be larger than the full distance")
                 calibration[sensor_id] = {"full_cm": float(full), "empty_cm": float(empty)}
+            self.hub.settings.data["settings_version"] = self.hub.settings.data.get("settings_version", 0) + 1
             self.hub.settings.save()
         self._json({"ok": True})
 

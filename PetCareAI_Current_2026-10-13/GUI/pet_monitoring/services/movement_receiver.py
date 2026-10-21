@@ -70,10 +70,13 @@ def parse_hub_sync(message):
                 calibration = {"full_cm": float(full), "empty_cm": float(empty)}
             entry.update(role=value["role"], threshold_cm=_number(value.get("threshold_cm"), 1, 400, "threshold"), calibration=calibration)
         clean_sensors[key] = entry
+    settings_version = message.get("settings_version")
+    if settings_version is not None and (type(settings_version) is not int or settings_version < 0):
+        raise ValueError("Invalid settings version")
     revision, total = message.get("revision"), message.get("pets_total")
     if type(revision) is not int or revision < 1 or type(total) is not int or total < 1:
         raise ValueError("Invalid hub sync")
-    return {"revision": revision, "pets_total": total, "pet": clean_pet, "sensors": clean_sensors}
+    return {**({"settings_version": settings_version} if settings_version is not None else {}), "revision": revision, "pets_total": total, "pet": clean_pet, "sensors": clean_sensors}
 
 
 def parse_message(line):

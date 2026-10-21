@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QStackedWidget, QVBoxLayout
                               QFrame, QScrollArea, QButtonGroup, QApplication)
 from .widgets import label, button, DogMascot
 from .theme import apply_theme
+from .navigation import NavigationButton
 from .login_page import LoginPage
 from .dashboard_page import DashboardPage
 from .live_monitoring_page import LiveMonitoringPage
@@ -76,17 +77,16 @@ class MainWindow(QMainWindow):
         self.hub.changed.connect(lambda: notice.setVisible(self.hub.mode != "Live Pi"))
         notice.setVisible(self.hub.mode != "Live Pi")
         names = ["Overview", "Live Sensors", "History", "Alerts", "Pet Profile", "Settings", "Sensor Hub", "Security Inspector"]
-        symbols = ["\u25a6", "\u25c9", "\u2197", "\u2691", "\u25ce", "\u2699", "\u25a4", "\u25c7"]
         self.nav_buttons = []
         self.navigation = QButtonGroup(self)
         self.navigation.setExclusive(True)
-        for i, (page, name, symbol) in enumerate(zip(self.pages, names, symbols)):
+        for i, (page, name) in enumerate(zip(self.pages, names)):
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
             scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
             scroll.setWidget(page)
             self.page_stack.addWidget(scroll)
-            nav = button(f"{symbol}   {name}", lambda checked=False, index=i: self.navigate(index))
+            nav = NavigationButton(name, lambda checked=False, index=i: self.navigate(index))
             nav.setObjectName("nav")
             nav.setCheckable(True)
             self.navigation.addButton(nav, i)

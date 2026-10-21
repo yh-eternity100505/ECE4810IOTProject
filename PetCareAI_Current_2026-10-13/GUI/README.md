@@ -293,3 +293,9 @@ API references used during implementation: [Qt thread signals](https://doc.qt.io
 ### Phone-app link and change history
 
 The sidebar **Open phone app** button opens the Pi web app through a localhost SSH tunnel after the hub reports ready. Its tooltip also shows the LAN address to open on a phone connected to the same network. The Pi and existing SSH connection must be available. Deployment includes the complete web asset folder. Phone pet/profile and sensor-setting snapshots are validated and recorded in **History**; credentials and Telegram tokens are excluded. Activity summaries are consolidated in **Overview**.
+
+### Two-way sensor settings
+
+Sensor assignments, thresholds and full/empty calibration can be saved in the phone app or the desktop GUI. The latest save accepted by the Pi hub updates both interfaces. Desktop saves are queued persistently until the GUI-managed SSH hub confirms them. Offline saves are applied on reconnection, so ordering is by acceptance at the Pi, not unsynchronised device clocks. Replayed snapshots and duplicate save retries cannot roll back a newer confirmed version. The GUI reports pending/confirmed synchronisation separately from sensor configuration acknowledgement.
+
+Capacity and the linear-volume checkbox remain desktop-only options. Pet profile and location edits retain their existing phone-to-desktop behavior. This sensor settings control uses the existing localhost SSH tunnel and does not alter EDC/HMAC sensor transport, administrator login or phone authentication. A separately running legacy hub reports that two-way desktop settings are unavailable; use the GUI-managed hub for this feature. Restart the GUI to deploy the updated hub and refresh the phone page.

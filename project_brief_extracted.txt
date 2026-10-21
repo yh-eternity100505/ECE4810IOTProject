@@ -1,0 +1,103 @@
+--- PAGE 1 ---
+ECE4810: Internet of Things: Communication, Data and Security 
+ 
+ 
+ 
+ 
+Prepared By A/P Ir Dr Joanne Lim  
+Project [20 marks]       Release Date:   9/9/2026       Submission Date:21/10/2026 
+Group Number:  
+ 
+Group Members (Name and ID):  
+1. 
+ 
+2. 
+ 
+3. 
+ 
+4. 
+ 
+Overview 
+This project aims to design a smart system  that can be used to detect presence and authenticate the 
+personnel that want to enter the protected premises/use the system. The system should have several key 
+features which are elaborated below. Take note that only the basic functionalities of these features are 
+described, and additional modifications must be implemented according to the marking rubric to obtain 
+higher grades. 
+Activity 1: IoT Sensor and Network System 
+1. The system should be capable of detecting objects that are near to the system. Whenever a presence 
+or object is detected, the system should notify the owner of the presence’s movements through telegram. 
+Using ultrasonic sensors, design a smart system that is capable of the following: 
+a) An ultrasonic sensor is used to detect presence near a location. When a signal is detected, send a 
+message to the user’s Telegram (to avoid theft/breaking in/to monitor situation). 
+ 
+b) A user should gain access by entering a username into the system. If the username is in the system’s 
+database, a password will be generated and sent to the user’s Telegram. The user should then enter this 
+password to successfully access the protected premise. 
+ 
+c) The design should consider minimal usage of sensors with high functionality or data interpretation. 
+ 
+Activity 2: Machine Learning System (holistic considerations for sustainable development) 
+Artificial Intelligence should be integrated into the system to help the system make more accurate and 
+effective decisions. Design a machine learning algorithm/code based on the existing machine learning 
+methods that can classify movements of the person/object/hand with the highest accuracy. This feature 
+can be used to either classify the movement of the object or as an authentication procedure (e.g. specific 
+hand movement to unlock the door/system). 
+a) Display the person/object movement accurately and send this information to the user using Telegram.    
+
+--- PAGE 2 ---
+ECE4810: Internet of Things: Communication, Data and Security 
+ 
+ 
+ 
+ 
+Prepared By A/P Ir Dr Joanne Lim  
+b) The system, machine learning algorithms, and codes should provide fast and accurate responses during 
+the inference process. Computational efficiency should be thoroughly evaluated with appropriate 
+supporting evidence and performance metrics.  
+c) Holistic considerations for sustainable development, including environmental and societal impacts, 
+should also be addressed to ensure long -term sustainability and successful implementation of the 
+proposed solution. 
+Activity 3: Security – Encryption and Decryption  
+a) Create a simple and reliable security algorithm for your smart system. Before running your 
+program, the user should login to the system with a username and password (e.g. a simple login 
+page, focus on the code, not the GUI). Data encryption and decryption should be utilized 
+whenever necessary to ensure that the security provided by the smart system is not compromised 
+(e.g. an encrypted password should be sent to the user to prevent hackers from obtaining the 
+actual password by intercepting transmission packets). 
+b) Describe the appropriate consideration for public health and safety,  whole-life cost, net zero 
+carbon as well as resource, cultural, societal, and environmental considerations where applicable.   
+Activity 4: Additional Features 
+Additional features should be introduced and integrated into the system with appropriate justifications. 
+The implementation of these features should make the system more user -friendly and practical. For 
+example, imagine what would happen in the real world if a smart system were installed in your house, 
+and consider how you would design it to be effective and seamless. Propose any extra and useful features 
+or methods that would make your system stand out from other teams, based on the items provided to 
+you. 
+Activity 5: Report 
+Write a report consisting of all the above activities with feasibility evaluation on the implementation and 
+cost – benefit analysis. Your report should consist of the following: 1.0 Introduction (with Problem 
+Statement and Objectives), 2.0 Methodology (with flow charts for activities plus a section for additional 
+features), 3.0 Results and Analysis, 4.0 Feasibility Evaluation with Cost Benefit Analysis , long-term 
+sustainability, public health and safety,  whole-life cost, net zero carbon as well as resource, cultural, 
+societal, and environmental considerations where applicable. , 5.0 Conclusion , Future Work  and 
+References. The report should be limited to maximum 20 pages with approximately 12,000 words, the 
+number of words is not inclusive of appendices, references, and diagrams. Marks will only be given to the 
+report excluding appendices. Anything more than 20 pages will not be given marks.  
+Activity 6: Demonstration 
+Present the demonstration of your work/prototype, methodology, results, and feasibility evaluation with 
+cost benefit analysis as a group in week 1 2 to pitch your prototype/idea/project. You will be given 5 
+
+--- PAGE 3 ---
+ECE4810: Internet of Things: Communication, Data and Security 
+ 
+ 
+ 
+ 
+Prepared By A/P Ir Dr Joanne Lim  
+minutes for each group (approximately 1 minute for overall report summary presentation and 4 minutes 
+for demonstration of the working prototype). There will be Q&A session after the demonstration.  
+Activity 7: Reflective Summary – Contribution and Commitment 
+Each member should prepare a reflective summary, 1 page each member and submit together with the 
+report as a single pdf file. The reflective summary should include contribution of each member, 
+communication during the participation of team discussion and c ommitment by each team member to 
+the project. Each member should list down how they have contributed.  

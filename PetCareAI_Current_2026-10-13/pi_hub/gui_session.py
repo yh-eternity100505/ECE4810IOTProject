@@ -33,7 +33,7 @@ def phone_snapshot(data_dir):
             entry.update(role=config["mapping"][sensor], threshold_cm=config["thresholds"][sensor],
                          calibration={key: calibration[key] for key in ("full_cm", "empty_cm")} if calibration else None)
         sensors[sensor] = entry
-    return {"type": "HUB_SYNC", "revision": config["revision"], "pets_total": max(1, len(data.get("pets", []))),
+    return {"settings_version": data.get("settings_version", 0), "type": "HUB_SYNC", "revision": config["revision"], "pets_total": max(1, len(data.get("pets", []))),
             "pet": {key: pet.get(key) for key in ("name", "animal", "breed", "sex", "birthday", "weight_kg", "avatar", "baseline_sleep_hours", "baseline_toilet_visits")},
             "sensors": sensors}
 

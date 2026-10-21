@@ -119,3 +119,126 @@ class DashboardChangesTests(unittest.TestCase):
         self.assertEqual(len(messages), 1)
         self.assertEqual(messages[0]["type"], "HUB_SYNC")
 
+
+    def test_local_calibration_survives_phone_snapshots_and_restart(self):
+        from tests.auth_support import configure_auth, login
+        from pet_monitoring.services.hub_sync import HubSync
+        configure_auth(self.c, self.temp.name)
+        login(self.c.auth)
+        message = self.snapshot()
+        message['sensors']['1']['calibration'] = None
+        self.window.hub_sync.apply(message)
+        saved = {'1': {'full_cm': 5.8, 'empty_cm': 16.8, 'capacity_l': 1.0, 'linear_volume': True}}
+        self.assertTrue(self.window.hub.save_level_calibration(saved)[0])
+        for _ in range(3):
+            self.window.hub_sync.apply(message)
+        self.assertEqual(self.window.hub.level_calibration, saved)
+        self.assertEqual(self.db.get('level_calibration'), saved)
+        # New synchroniser instance uses persisted conflict tracking.
+        sync = HubSync(self.c, self.window.hub, self.window.movement.receiver)
+        sync.apply(message)
+        self.assertEqual(self.window.hub.level_calibration, saved)
+        confirmation = copy.deepcopy(message)
+        confirmation['settings_version'] = 1
+        confirmation['sensors']['1']['calibration'] = {'full_cm': 5.8, 'empty_cm': 16.8}
+        operation_id = sync.pending[0]['operation_id']
+        sync.acknowledge(operation_id, confirmation)
+        changed = copy.deepcopy(message)
+        changed['settings_version'] = 2
+        changed['sensors']['1']['calibration'] = {'full_cm': 6.0, 'empty_cm': 18.0}
+        sync.apply(changed)
+        self.assertEqual(self.window.hub.level_calibration['1']['full_cm'], 6.0)
+        self.assertEqual(self.window.hub.level_calibration['1']['capacity_l'], 1.0)
+        self.assertTrue(self.window.hub.level_calibration['1']['linear_volume'])
+
+    def test_repeated_phone_updates_do_not_erase_calibration_drafts(self):
+        from tests.auth_support import configure_auth, login
+        configure_auth(self.c, self.temp.name)
+        login(self.c.auth)
+        message = self.snapshot()
+        message['sensors']['1']['calibration'] = None
+        self.window.hub_sync.apply(message)
+        page = self.window.pages[6].calibration
+        _, full, empty, capacity, linear = page.fields['1']
+        full.setValue(5.8)
+        empty.setValue(16.8)
+        capacity.setValue(1)
+        linear.setChecked(True)
+        self.window.hub_sync.apply(message)
+        self.assertEqual((full.value(), empty.value(), capacity.value(), linear.isChecked()), (5.8, 16.8, 1, True))
+        page.save()
+        self.window.hub_sync.apply(message)
+        self.assertEqual((full.value(), empty.value(), capacity.value(), linear.isChecked()), (5.8, 16.8, 1, True))
+        self.assertIn('saved', page.feedback.text())
+
+    def test_save_before_first_phone_snapshot_preserves_calibration(self):
+        from tests.auth_support import configure_auth, login
+        configure_auth(self.c, self.temp.name)
+        login(self.c.auth)
+        saved = {'1': {'full_cm': 4.0, 'empty_cm': 12.0, 'capacity_l': 0.0, 'linear_volume': False}}
+        self.assertTrue(self.window.hub.save_level_calibration(saved)[0])
+        message = self.snapshot()
+        message['sensors']['1']['calibration'] = {'full_cm': 2.0, 'empty_cm': 10.0}
+        self.window.hub_sync.apply(message)
+        self.window.hub_sync.apply(message)
+        self.assertEqual(self.window.hub.level_calibration['1'], saved['1'])
+
+    def test_two_way_calibration_over_real_tunnel_socket(self):
+        from tests.auth_support import configure_auth, login
+        from tests.test_pi_hub_startup import wait_for
+        from pet_monitoring.services.pi_hub_bridge import PiHubBridge
+        configure_auth(self.c, self.temp.name)
+        login(self.c.auth)
+        settings = phone.SettingsStore(Path(self.temp.name) / 'phone-settings.json')
+        db = phone.Database(Path(self.temp.name) / 'phone.db')
+        hub = phone.Hub(settings, db, phone.Telegram(settings), dashboard_source=True)
+        server = phone.SensorLink(hub, '127.0.0.1', 0)
+        server.start()
+        self.assertTrue(server.ready.wait(2))
+        sync = self.window.hub_sync
+        bridge = PiHubBridge(self.window.movement.receiver, self.window.hub, settings_sync=sync)
+        bridge.start(server.port)
+        try:
+            self.assertTrue(wait_for(lambda: bridge.socket.state() == bridge.socket.SocketState.ConnectedState))
+            local = {'1': {'full_cm': 5.8, 'empty_cm': 16.8, 'capacity_l': 1, 'linear_volume': True}}
+            self.assertTrue(self.window.hub.save_level_calibration(local)[0])
+            self.assertTrue(wait_for(lambda: not sync.pending))
+            self.assertEqual(settings.data['calibration']['1'], {'full_cm': 5.8, 'empty_cm': 16.8})
+            self.assertEqual(self.window.hub.level_calibration['1'], local['1'])
+            version = settings.data['settings_version']
+            stale = hub.sync_message()
+            # Simulate the same persisted change made by the authenticated phone endpoint.
+            with settings.lock:
+                settings.data['calibration']['1'] = {'full_cm': 6.5, 'empty_cm': 20.0}
+                settings.data['settings_version'] += 1
+                settings.save()
+            from pet_monitoring.services.movement_receiver import parse_message
+            sync.apply(parse_message(json.dumps(hub.sync_message())))
+            self.assertEqual(self.window.hub.level_calibration['1']['full_cm'], 6.5)
+            sync.apply(parse_message(json.dumps(stale)))
+            self.assertEqual(self.window.hub.level_calibration['1']['full_cm'], 6.5)
+            next_local = {'1': {**local['1'], 'full_cm': 7.0}}
+            self.assertTrue(self.window.hub.save_level_calibration(next_local)[0])
+            self.assertTrue(wait_for(lambda: not sync.pending))
+            self.assertEqual(settings.data['calibration']['1']['full_cm'], 7.0)
+            self.assertGreater(settings.data['settings_version'], version)
+            # Retrying an old operation must never undo that later save.
+            old_id = settings.data['desktop_settings_operations'][0]
+            hub.apply_desktop_settings({'type': 'DASHBOARD_SETTINGS', 'operation_id': old_id,
+                                       'calibration': {'1': {'full_cm': 5.8, 'empty_cm': 16.8}}})
+            self.assertEqual(settings.data['calibration']['1']['full_cm'], 7.0)
+            # The same ordered path synchronises assignments and thresholds.
+            mapping = dict(self.window.hub.mapping)
+            thresholds = {**self.window.hub.thresholds, '2': 12.0}
+            self.assertTrue(self.window.hub.save_configuration(mapping, thresholds))
+            self.assertTrue(wait_for(lambda: not sync.pending))
+            self.assertEqual(settings.data['sensors']['thresholds']['2'], 12.0)
+            hub.save_sensor_config(mapping, {**thresholds, '2': 11.0})
+            sync.apply(parse_message(json.dumps(hub.sync_message())))
+            self.assertEqual(self.window.hub.thresholds['2'], 11.0)
+        finally:
+            bridge.stop()
+            server.stop.set()
+            server.join(timeout=2)
+            hub.executor.shutdown(wait=True)
+            db.conn.close()
