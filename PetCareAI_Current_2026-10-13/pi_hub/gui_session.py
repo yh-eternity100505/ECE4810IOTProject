@@ -9,6 +9,50 @@ import socketserver
 import subprocess
 import sys
 import threading
+import json
+
+
+def phone_snapshot(data_dir):
+    """Read only the public pet/hardware fields; never send account or bot secrets."""
+    path = Path(data_dir) / "hub_settings.json"
+    if not path.is_file() or path.stat().st_size > 2 * 1024 * 1024:
+        return None
+    from pi_hub import DEFAULT_SETTINGS, SENSOR_PINS
+    data = json.loads(path.read_text(encoding="utf-8"))
+    pet = {**DEFAULT_SETTINGS["pet"], **data.get("pet", {})}
+    config = data.get("sensors", DEFAULT_SETTINGS["sensors"])
+    layout = data.get("sensor_layout", DEFAULT_SETTINGS["sensor_layout"])
+    sensors = {}
+    for sensor, pins in SENSOR_PINS.items():
+        place = layout.get(sensor, DEFAULT_SETTINGS["sensor_layout"][sensor])
+        entry = {"pins": pins, "location": {key: place.get(key) for key in ("x", "z", "facing", "mount", "note")}}
+        if sensor == "5":
+            entry["role"] = "entrance"
+        else:
+            calibration = data.get("calibration", {}).get(sensor)
+            entry.update(role=config["mapping"][sensor], threshold_cm=config["thresholds"][sensor],
+                         calibration={key: calibration[key] for key in ("full_cm", "empty_cm")} if calibration else None)
+        sensors[sensor] = entry
+    return {"settings_version": data.get("settings_version", 0), "type": "HUB_SYNC", "revision": config["revision"], "pets_total": max(1, len(data.get("pets", []))),
+            "pet": {key: pet.get(key) for key in ("name", "animal", "breed", "sex", "birthday", "weight_kg", "avatar", "baseline_sleep_hours", "baseline_toilet_visits")},
+            "sensors": sensors}
+
+
+def watch_phone_settings(data_dir, stop):
+    last = None
+    elapsed = 5
+    while not stop.is_set():
+        try:
+            snapshot = phone_snapshot(data_dir)
+            if snapshot is not None and (snapshot != last or elapsed >= 5):
+                encoded = json.dumps(snapshot, separators=(",", ":"), allow_nan=False)
+                print("[PETCARE_HUB_SYNC] " + encoded, flush=True)
+                last = snapshot
+                elapsed = 0
+        except (OSError, ValueError, KeyError, TypeError):
+            pass  # A settings save may be in progress; retry without printing private data.
+        stop.wait(1)
+        elapsed += 1
 
 
 def service_active(name):
@@ -55,6 +99,7 @@ def reuse_hub(sensor_port, stop):
 
 def run_session(data_dir, sensor_port):
     process = None
+    watcher = None
     stop = threading.Event()
     previous_handlers = {}
     for name in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
@@ -62,6 +107,8 @@ def run_session(data_dir, sensor_port):
     try:
         if service_active("petcare-sensors"):
             raise RuntimeError("The system petcare-sensors service already owns GPIO; stop it before using the GUI-managed encrypted sender")
+        watcher = threading.Thread(target=watch_phone_settings, args=(data_dir, stop), daemon=True)
+        watcher.start()
         if service_active("petcare-hub"):
             reuse_hub(sensor_port, stop)
             return 0
@@ -75,6 +122,9 @@ def run_session(data_dir, sensor_port):
         print("[PETCARE_HUB_ERROR] " + str(exc), flush=True)
         return 1
     finally:
+        stop.set()
+        if watcher is not None:
+            watcher.join(timeout=2)
         if process is not None and process.poll() is None:
             process.send_signal(signal.SIGINT)
             try:

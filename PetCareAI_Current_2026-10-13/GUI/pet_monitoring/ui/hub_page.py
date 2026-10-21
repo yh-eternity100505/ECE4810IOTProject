@@ -3,7 +3,6 @@ from .widgets import Page, Card, label, button
 from .pet_profile_page import number
 from pet_monitoring.hub_controller import MODES, MODE_THRESHOLDS
 from .gesture_sensor_card import GestureSensorCard
-from .activity_analysis import ActivityAnalysis
 from .container_levels import LevelCalibration
 
 
@@ -20,7 +19,7 @@ class HubPage(Page):
         self.source.currentTextChanged.connect(hub.set_mode)
         controls.addWidget(self.source)
         controls.addStretch()
-        controls.addWidget(button("Connect Pi / Gesture access", movement_callback))
+        controls.addWidget(button("Pi connection settings", movement_callback))
         self.box.addLayout(controls)
         self.status = label("", "muted", True)
         self.box.addWidget(self.status)
@@ -71,8 +70,6 @@ class HubPage(Page):
             self.metrics[mode] = value, duration
             row.addWidget(card)
         self.box.addLayout(row)
-        self.activity_analysis = ActivityAnalysis(hub)
-        self.box.addWidget(self.activity_analysis)
         live = Card("Live zone status")
         live.box.addWidget(label("All four pet sensors monitor continuously when you change tabs. Live data uses the Pi's proximity rules and confirmed assignment revision; inputs turn offline after 5 seconds without readings.", "muted", True))
         self.live = QTableWidget(4, 4)
@@ -99,7 +96,7 @@ class HubPage(Page):
     def sync_from_hub(self, state):
         """Show the hub's sensor setup: roles, thresholds, calibration and physical locations."""
         if not state:
-            self.sync_note.setText("Not synced with the Pi hub yet. When connected, the hub's sensor setup replaces local changes.")
+            self.sync_note.setText("Not connected yet. GUI sensor saves remain pending until the Pi confirms synchronisation.")
             return
         facing = {0: "faces back", 45: "faces back-right", 90: "faces right", 135: "faces front-right", 180: "faces front",
                   -180: "faces front", -135: "faces front-left", -90: "faces left", -45: "faces back-left"}
@@ -114,8 +111,8 @@ class HubPage(Page):
             self.thresholds[sensor_id].setValue(self.hub.thresholds[sensor_id])
             self.thresholds[sensor_id].setEnabled(self.hub.mapping[sensor_id] not in {"eat", "water"})
         self.calibration.reload()
-        self.sync_note.setText(f"Synced from the Pi hub at {state['time']}. Change sensors, calibration and locations in the phone app; "
-                               "the hub's setup replaces local edits while connected.")
+        self.sync_note.setText(f"Synced from the Pi hub at {state['time']}. Save sensors and calibration in either app; "
+                               "the latest save accepted by the Pi updates both apps.")
 
     def save(self):
         self.hub.save_configuration({key: combo.currentData() for key, combo in self.combos.items()},

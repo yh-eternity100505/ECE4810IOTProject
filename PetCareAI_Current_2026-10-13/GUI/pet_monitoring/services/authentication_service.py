@@ -242,6 +242,20 @@ class AuthenticationService:
         except (OSError, ValueError, TypeError):
             return "", ""
 
+    def notification_destination(self):
+        """Return the verified enrolled Telegram pair for explicitly enabled alerts.
+
+        Never exposes it in widgets/logs or changes administrator authentication.
+        """
+        try:
+            with self._exclusive():
+                record = self._load()
+                if record is not None and record['v'] == 2:
+                    return record['telegram_token'], record['telegram_chat_id']
+        except STORAGE_ERRORS:
+            pass
+        return '', ''
+
     @staticmethod
     def _validate_telegram(token, chat_id):
         if not isinstance(token, str) or not re.fullmatch(r"[0-9]{5,20}:[A-Za-z0-9_-]{20,100}", token):
@@ -254,6 +268,13 @@ class AuthenticationService:
         from pet_monitoring.services.telegram_service import TelegramService
         # Always REAL delivery. Alert mock mode must never expose a login OTP.
         return TelegramService("Real", token, chat_id, True).send_message(message)
+
+    @staticmethod
+    def _delivery_error(status):
+        from pet_monitoring.services.telegram_service import DELIVERY_ERRORS
+        if status in DELIVERY_ERRORS.values():
+            return "Telegram delivery failed. " + status
+        return "Telegram delivery failed. Check your internet and bot chat, then retry or use a recovery code."
 
     def _new_otp(self, expires_at):
         code = f"{secrets.randbelow(1000000):06d}"
@@ -281,14 +302,14 @@ class AuthenticationService:
         code, challenge = self._new_otp(min(now + 120, enrollment.expires_at))
         self._setup_otp = challenge
         try:
-            success, _ = self._telegram_sender(enrollment.telegram_token, enrollment.telegram_chat_id,
+            success, status = self._telegram_sender(enrollment.telegram_token, enrollment.telegram_chat_id,
                 f"PetCare AI administrator SETUP code: {code}\nExpires in 2 minutes. Do not share this code.")
         except Exception:
-            success = False
+            success, status = False, ""
         if self._enrollment is not enrollment or self._setup_otp is not challenge:
             return False, "Setup request cancelled."
         challenge.delivered = success is True and time.monotonic() < challenge.expires_at
-        return (True, "Code sent to Telegram. Enter it within 2 minutes.") if challenge.delivered else (False, "Telegram delivery failed. Check the bot token, private chat ID, internet, and that you pressed Start in your bot chat.")
+        return (True, "Code sent to Telegram. Enter it within 2 minutes.") if challenge.delivered else (False, self._delivery_error(status))
 
     def request_login_otp(self):
         """Background-safe: only native storage/network, no SQLite or UI access."""
@@ -314,17 +335,17 @@ class AuthenticationService:
                 self._login_otp = challenge
                 token, chat_id = record["telegram_token"], record["telegram_chat_id"]
             try:
-                success, _ = self._telegram_sender(token, chat_id,
+                success, status = self._telegram_sender(token, chat_id,
                     f"PetCare AI administrator LOGIN code: {code}\nExpires in 2 minutes. Do not share this code.")
             except Exception:
-                success = False
+                success, status = False, ""
             with self._exclusive():
                 record = self._load()
                 if (record is None or record["otp_id"] != challenge.identifier
                         or self._pending != pending or self._login_otp is not challenge):
                     return False, "OTP request cancelled or replaced."
                 challenge.delivered = success is True and self.awaiting_otp and time.monotonic() < challenge.expires_at
-            return (True, "Code sent to Telegram. Enter it within 2 minutes.") if challenge.delivered else (False, "Telegram delivery failed. Check your internet and bot chat, then retry or use a recovery code.")
+            return (True, "Code sent to Telegram. Enter it within 2 minutes.") if challenge.delivered else (False, self._delivery_error(status))
         except STORAGE_ERRORS:
             self._blocked()
             return False, self.last_error
@@ -504,6 +525,40 @@ class AuthenticationService:
             self._blocked()
             return False
 
+    def complete_gesture_login(self, challenge, code, credential_version):
+        """Consume the delivered, registered gesture OTP before issuing a session.
+
+        The movement controller separately enforces the fresh gesture window.
+        An unregistered challenge or a movement signal alone cannot sign in.
+        """
+        try:
+            with self._exclusive():
+                record = self._load()
+                if (record is None or record['v'] != 2 or challenge is None
+                        or record.get('gesture_otp_id') != challenge.identifier
+                        or self._credential_version(record) != credential_version
+                        or time.time() < record['locked_until']):
+                    self.last_error = "Gesture sign-in is unavailable. Perform the gesture again."
+                    return False
+                if not self._check_otp(challenge, code):
+                    self._failure(record)
+                    return False
+                record['gesture_otp_id'] = ''
+                record['otp_id'] = ''
+                record['failures'] = 0
+                record['locked_until'] = 0
+                self._save(record)  # Consume proof before creating the session.
+                self.cancel_login()
+                self.cancel_password_reset()
+                self.session = Session('admin', time.monotonic()+self.session_seconds,
+                                       credential_version=self._credential_version(record))
+                self.last_error = ''
+                self._event('LOGIN_SUCCESS_GESTURE_OTP')
+                return True
+        except STORAGE_ERRORS:
+            self._blocked()
+            return False
+
     def cancel_login(self):
         self._pending = None
         self._login_otp = None
@@ -565,10 +620,10 @@ class AuthenticationService:
                 self._save(record)
                 token, chat = record["telegram_token"], record["telegram_chat_id"]
             try:
-                success, _ = self._telegram_sender(token, chat,
+                success, status = self._telegram_sender(token, chat,
                     f"PetCare AI administrator PASSWORD RESET code: {code}\nExpires in 2 minutes. Do not share this code. If you did not request a reset, ignore it.")
             except Exception:
-                success = False
+                success, status = False, ""
             with self._exclusive():
                 record = self._load()
                 if (record is None or record["otp_id"] != challenge.identifier
@@ -577,7 +632,7 @@ class AuthenticationService:
                         or self._credential_version(record) != context[1]):
                     return False, "Password reset request cancelled or replaced."
                 challenge.delivered = success is True and time.monotonic() < challenge.expires_at
-            return (True, "Reset code sent to your registered Telegram chat. Enter it and choose a new password within 2 minutes.") if challenge.delivered else (False, "Telegram delivery failed. Check your connection and bot chat, then request another code.")
+            return (True, "Reset code sent to your registered Telegram chat. Enter it and choose a new password within 2 minutes.") if challenge.delivered else (False, self._delivery_error(status))
         except STORAGE_ERRORS:
             self._blocked()
             return False, self.last_error

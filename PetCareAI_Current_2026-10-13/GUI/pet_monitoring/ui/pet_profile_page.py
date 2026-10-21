@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QFormLayout, QLineEdit, QDoubleSpinBox, QHBoxLayout
-from .widgets import Page, Card, label, button
+from .widgets import Page, Card, label, button, DogMascot
 from pet_monitoring.models import PetProfile
 
 
@@ -19,13 +19,11 @@ class PetProfilePage(Page):
         self.fields = {}
         row = QHBoxLayout()
         details = Card("About your pet")
-        avatar = label("M", "metric")
+        avatar = DogMascot(150, 170)
         self.avatar = avatar
-        avatar.setFixedSize(70, 70)
         self.refresh_avatar()
         controller.settings_changed.connect(self.refresh_avatar)
         details.box.addWidget(avatar)
-        details.box.addWidget(label("Pet photo placeholder", "muted"))
         form = QFormLayout()
         form.setSpacing(14)
         profile = controller.profile
@@ -75,7 +73,7 @@ class PetProfilePage(Page):
         for key, field in self.fields.items():
             value = getattr(profile, key)
             field.setText(value) if isinstance(field, QLineEdit) else field.setValue(value)
-        self.avatar.setText(profile.name[:1].upper() or "?")
+        self.refresh_avatar()
         if state:
             sex = {"female": "Girl", "male": "Boy"}.get(state["sex"], "not set")
             birthday = state["birthday"] or "not set"
@@ -83,10 +81,7 @@ class PetProfilePage(Page):
                                    f"{state['pets_total']} pet(s) on the hub; this is the monitored one. Edit pets in the phone app.")
 
     def refresh_avatar(self):
-        # Settings already contains the selected theme before the shell applies it.
-        from .theme import DARK, LIGHT
-        colors = DARK if self.c.settings["theme"] == "Dark" else LIGHT
-        self.avatar.setStyleSheet(f"background: {colors['accent_soft']}; color: {colors['accent']}; border-radius: 35px; qproperty-alignment: AlignCenter;")
+        self.avatar.setToolTip(f"{self.c.profile.name} - profile picture")
 
     def save(self):
         values = {key: field.text().strip() if isinstance(field, QLineEdit) else field.value()

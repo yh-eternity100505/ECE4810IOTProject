@@ -11,6 +11,8 @@ MODE_THRESHOLDS = {"eat": 20.0, "water": 20.0, "sleep": 14.0, "toilet": 13.0}
 
 class HubController(QObject):
     changed = Signal()
+    before_activity_change = Signal()
+    settings_saved = Signal(dict)
 
     def __init__(self, controller, receiver):
         super().__init__(controller)
@@ -61,7 +63,10 @@ class HubController(QObject):
             raise ValueError("Assign a valid pet mode to Sensors 1–4")
         if set(thresholds) != set(DEFAULT_MAPPING) or any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or not 1 <= v <= 400 for v in thresholds.values()):
             raise ValueError("Thresholds must be between 1 and 400 cm")
-        return self._store_configuration(mapping, thresholds, "Saved locally. Waiting for the Raspberry Pi to acknowledge the configuration.")
+        saved = self._store_configuration(mapping, thresholds, "Saved locally. Waiting for the Raspberry Pi to acknowledge the configuration.")
+        if saved:
+            self.settings_saved.emit({"configuration": {"mapping": dict(mapping), "thresholds": dict(thresholds)}})
+        return saved
 
     def apply_remote_configuration(self, mapping, thresholds):
         """Sensor roles and thresholds pushed by the Pi hub (the master copy); no local sign-in needed."""
@@ -74,6 +79,7 @@ class HubController(QObject):
         self.changed.emit()
 
     def _store_configuration(self, mapping, thresholds, feedback):
+        self.before_activity_change.emit()
         next_revision = self.revision + 1
         self._advance_activity()
         if not self.c.db.set("hub_configuration", {"mapping": mapping, "thresholds": thresholds, "revision": next_revision, "lab1_thresholds_applied": True}):
@@ -92,6 +98,7 @@ class HubController(QObject):
         return True
 
     def set_mode(self, mode):
+        self.before_activity_change.emit()
         if mode not in {"Demo", "Live Pi"}:
             raise ValueError("Unknown hub mode")
         self._advance_activity()
@@ -109,6 +116,7 @@ class HubController(QObject):
 
     @Slot(str)
     def connection_changed(self, status):
+        self.before_activity_change.emit()
         self._advance_activity()
         self.connection = status
         if "disconnected" in status or "stopped" in status or "connected" in status or "lost" in status:
@@ -119,6 +127,7 @@ class HubController(QObject):
 
     @Slot(dict)
     def process(self, message):
+        self.before_activity_change.emit()
         kind = message["type"]
         if kind not in {"CONFIG_ACK", "SENSOR_READING", "ZONE_EVENT"}:
             return
@@ -135,9 +144,8 @@ class HubController(QObject):
                 self._advance_activity()
                 state = self.states[sensor_id]
                 distance = message["distance_cm"]
-                presence = distance is not None and distance < self.thresholds[sensor_id]
-                if self.mapping[sensor_id] in {"eat", "water"}:
-                    presence = False
+                from pet_monitoring.activity_dataset import presence_for_area
+                presence = presence_for_area(self.mapping[sensor_id], distance, self.thresholds[sensor_id])
                 state.update(distance=distance, presence=presence, seen=time.monotonic(), updated=datetime.now().strftime("%H:%M:%S"))
                 self._record_level(sensor_id)
             else:
@@ -172,6 +180,7 @@ class HubController(QObject):
                 state["started"] = None
 
     def tick(self):
+        self.before_activity_change.emit()
         self._advance_activity()
         now = time.monotonic()
         if self.mode == "Demo":
@@ -246,12 +255,26 @@ class HubController(QObject):
             full, empty, capacity = value["full_cm"], value["empty_cm"], value["capacity_l"]
             if not all(math.isfinite(x) for x in (full, empty, capacity)) or not 0 < full < empty <= 400 or capacity < 0:
                 return False, f"Sensor {sensor_id}: enter valid distances with empty > full > 0."
+        previous_values = dict(self.level_calibration)
         if not self.c.db.set("level_calibration", values):
             return False, "Unable to save calibration."
+        # Remember the phone snapshot against which this desktop edit was made.
+        # Replayed snapshots must not undo a newer local save, including a clear.
+        remote = self.c.db.get("hub_remote_calibration", {})
+        overrides = self.c.db.get("level_calibration_overrides", {})
+        for key in set(values) | set(self.level_calibration):
+            if values.get(key) != self.level_calibration.get(key):
+                overrides[key] = {"baseline_known": key in remote, "baseline": remote.get(key)}
+        if not self.c.db.set("level_calibration_overrides", overrides):
+            return False, "Unable to save calibration sync state."
         self.level_calibration = values
         self._last_level_save.clear()
         self.changed.emit()
-        return True, "Container calibration saved."
+        patch = {key: ({"full_cm": values[key]["full_cm"], "empty_cm": values[key]["empty_cm"]} if key in values else None)
+                 for key in set(values) | set(previous_values) if values.get(key) != previous_values.get(key)}
+        if patch:
+            self.settings_saved.emit({"calibration": patch})
+        return True, "Container calibration saved locally; phone sync pending until connected."
 
     def level(self, sensor_id):
         state = self.states[sensor_id]

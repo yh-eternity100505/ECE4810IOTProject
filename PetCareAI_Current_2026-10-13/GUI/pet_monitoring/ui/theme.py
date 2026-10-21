@@ -73,7 +73,9 @@ def apply_theme(app, theme="Dark"):
         QPlainTextEdit {{ background: {c['input']}; border: 1px solid {c['border']}; border-radius: 7px; padding: 8px; selection-background-color: {c['accent']}; selection-color: {c['accent_text']}; }}
         QPushButton#nav {{ text-align: left; color: {c['sidebar_text']}; background: transparent; border: none; padding: 13px 16px; }}
         QPushButton#nav:checked {{ color: {c['sidebar_text']}; background: {c['nav_active']}; border-left: 3px solid {c['accent']}; }}
-        QPushButton#nav:hover {{ background: {c['nav_hover']}; }}
+        QPushButton#nav:hover:!checked {{ background: {c['nav_hover']}; }}
+        QPushButton#nav[outlineNav="true"] {{ padding: 13px 8px 13px 40px; border-left: 3px solid transparent; font-size: 13px; }}
+        QPushButton#nav[outlineNav="true"]:checked {{ border-left: 3px solid {c['accent']}; }}
         QLineEdit, QComboBox, QDoubleSpinBox, QSpinBox {{ background: {c['input']}; border: 1px solid {c['border']}; border-radius: 7px; padding: 8px; min-height: 21px; }}
         QLineEdit:focus, QComboBox:focus {{ border: 1px solid {c['accent']}; }}
         QComboBox QAbstractItemView {{ background: {c['card']}; selection-background-color: {c['accent']}; selection-color: {c['accent_text']}; }}

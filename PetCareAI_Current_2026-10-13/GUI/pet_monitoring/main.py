@@ -169,7 +169,17 @@ def main(argv=None):
 
     parser.add_argument("--setup-admin", action="store_true",
                         help="One-time local administrator password and Telegram OTP enrollment")
+    parser.add_argument("--record-activity", type=Path, help="New JSONL recording path; CSV exported on exit")
+    parser.add_argument("--activity-clock-scale", type=float, default=1, help="Dataset clock only: 3600 means 24 seconds per day")
+    parser.add_argument("--collection-days", type=float, help="Stop GUI after this many logical days, starting at first Pi configuration ACK")
     args = parser.parse_args(argv)
+    import math
+    if not math.isfinite(args.activity_clock_scale) or args.activity_clock_scale <= 0:
+        parser.error("--activity-clock-scale must be positive and finite")
+    if args.collection_days is not None and (not math.isfinite(args.collection_days) or args.collection_days <= 0 or not args.record_activity):
+        parser.error("--collection-days requires --record-activity and a positive finite number")
+    if args.record_activity and args.record_activity.exists():
+        parser.error("Recording already exists; choose a new file to avoid overwriting activity")
 
     if args.setup_edc:
         from pet_monitoring.security.edc_settings import setup_keys
@@ -199,18 +209,35 @@ def main(argv=None):
     window.show()
 
     receiver = window.movement.receiver
-    phone_bridge = PiHubBridge(receiver, window.hub, app)
+    recorder = None
+    def begin_collection(message=None):
+        nonlocal recorder
+        if (recorder is None and window.hub.mode == "Live Pi" and window.hub.acknowledged == window.hub.revision):
+            from pet_monitoring.activity_dataset import ActivityRecorder
+            recorder = ActivityRecorder(window.hub, args.record_activity, args.activity_clock_scale)
+            window.hub.before_activity_change.connect(recorder.advance)
+            window.hub.changed.connect(recorder.updated)
+            app.aboutToQuit.connect(recorder.close)
+            print(f"[DATASET] Recording accepted Pi activity to {args.record_activity}; clock scale {args.activity_clock_scale}", flush=True)
+            if args.collection_days:
+                QTimer.singleShot(max(1, round(args.collection_days * 86400 / args.activity_clock_scale * 1000)), app.quit)
+    if args.record_activity:
+        receiver.received.connect(begin_collection)
+        window.hub.changed.connect(begin_collection)
+        print("[DATASET] Waiting for Live Pi mode and a matching configuration ACK", flush=True)
+    phone_bridge = PiHubBridge(receiver, window.hub, app, settings_sync=window.hub_sync)
     phone_launcher = PiHubLauncher(PI_ADDRESS, app)
     # Keep the accepted-message relay separate from the original decoder and SSH sender.
     def phone_ready(port, url):
         phone_bridge.start(port, legacy=phone_launcher.legacy_hub)
-        window.set_phone_app_status("Phone app ready", url)
+        window.set_phone_app_status("Phone app ready", url, phone_launcher.phone_url)
         # The session has checked that a system sensor service does not already own GPIO.
         start_pi_sender(app, receiver.port)
         # Stop the sender first, then close only our hub/tunnel session.
         app.aboutToQuit.connect(phone_launcher.stop)
 
     phone_launcher.ready.connect(phone_ready)
+    phone_launcher.synced.connect(window.hub_sync.apply)
     phone_launcher.status.connect(window.set_phone_app_status)
     phone_bridge.status.connect(window.set_phone_app_status)
     phone_launcher.stopped.connect(phone_bridge.stop)

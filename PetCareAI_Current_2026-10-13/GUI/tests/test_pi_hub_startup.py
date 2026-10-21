@@ -111,8 +111,9 @@ class RelayTests(unittest.TestCase):
         self.assertTrue(wait_for(lambda: self.hub.states["2"]["distance"] == 10))
         self.assertEqual(self.hub.sensors["mapping"]["2"], "toilet")
         self.assertEqual(self.settings.data["sensors"], saved)
-        with self.assertRaisesRegex(ValueError, "desktop GUI"):
-            self.hub.save_sensor_config(self.desktop.mapping, self.desktop.thresholds)
+        self.hub.save_sensor_config(self.desktop.mapping, self.desktop.thresholds)
+        self.assertEqual(self.settings.data["sensors"]["mapping"], self.desktop.mapping)
+        self.assertEqual(self.settings.data["settings_version"], 1)
 
     def test_pi_disconnect_is_reported_even_while_tunnel_is_connected(self):
         self.send(self.reading(10))
@@ -133,7 +134,7 @@ class RelayTests(unittest.TestCase):
         self.send(self.reading(11))
         self.assertTrue(wait_for(lambda: self.hub.states["2"]["distance"] == 11))
 
-    def test_phone_http_api_serves_shared_readings_and_locks_desktop_sensor_settings(self):
+    def test_phone_http_api_serves_shared_readings_and_accepts_sensor_settings(self):
         sessions = phone.Sessions()
         handler = type("TestHandler", (phone.Handler,), {"hub": self.hub, "sessions": sessions})
         httpd = phone.ThreadingHTTPServer(("127.0.0.1", 0), handler)
@@ -154,10 +155,12 @@ class RelayTests(unittest.TestCase):
             request = urllib.request.Request(base + "/api/settings", headers=headers)
             with urllib.request.urlopen(request, timeout=2) as response:
                 self.assertTrue(json.load(response)["dashboard_source"])
-            request = urllib.request.Request(base + "/api/settings/sensors", headers=headers, data=b"{}")
-            with self.assertRaises(urllib.error.HTTPError) as rejected:
-                urllib.request.urlopen(request, timeout=2)
-            self.assertEqual(rejected.exception.code, 409)
+            payload = {"mapping": dict(self.desktop.mapping), "thresholds": {**self.desktop.thresholds, "2": 12}}
+            request = urllib.request.Request(base + "/api/settings/sensors", headers=headers, data=json.dumps(payload).encode())
+            with urllib.request.urlopen(request, timeout=2) as response:
+                self.assertTrue(json.load(response)["ok"])
+            self.assertEqual(self.settings.data["sensors"]["thresholds"]["2"], 12)
+            self.assertEqual(self.settings.data["settings_version"], 1)
         finally:
             httpd.shutdown()
             httpd.server_close()
@@ -255,13 +258,13 @@ class SessionOwnershipTests(unittest.TestCase):
 
     def test_ready_marker_is_buffered_and_emitted_only_once(self):
         launcher = PiHubLauncher("jiating@192.0.2.10")
-        launcher.phase, launcher.local_port = "run", 23456
+        launcher.phase, launcher.local_port, launcher.web_port = "run", 23456, 23457
         ready = []
         launcher.ready.connect(lambda port, url: ready.append((port, url)))
         with patch.object(launcher.process, "readAllStandardOutput", side_effect=[b"[PETCARE_", b"HUB_READY]\r\n", b"more output"]):
             for _ in range(3):
                 launcher._read()
-        self.assertEqual(ready, [(23456, "http://192.0.2.10:8080")])
+        self.assertEqual(ready, [(23456, "http://127.0.0.1:23457")])
         launcher.stop()
 
 

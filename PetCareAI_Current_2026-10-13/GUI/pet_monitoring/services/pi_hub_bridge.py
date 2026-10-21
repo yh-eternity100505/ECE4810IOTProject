@@ -8,9 +8,13 @@ class PiHubBridge(QObject):
     status = Signal(str)
     MAX_PENDING = 131072
 
-    def __init__(self, receiver, hub, parent=None):
+    def __init__(self, receiver, hub, parent=None, settings_sync=None):
         super().__init__(parent)
         self.receiver, self.hub = receiver, hub
+        self.settings_sync = settings_sync
+        self._sent_operation = None
+        if settings_sync is not None:
+            settings_sync.outgoing_changed.connect(self.send_settings)
         self.port = None
         self.source_connected = False
         self.legacy = False
@@ -51,10 +55,13 @@ class PiHubBridge(QObject):
         self._incoming = b""
         self._remote_config = self._remote_ack = None
         self.sync_configuration()
+        self._sent_operation = None
+        self.send_settings()
         self.status.emit("Phone app: connected · receiving accepted Pi readings")
 
     def _disconnected(self):
         self._configuration = None
+        self._sent_operation = None
         if self.port:
             self.status.emit("Phone app: disconnected · retrying")
 
@@ -92,6 +99,18 @@ class PiHubBridge(QObject):
         while b"\n" in self._incoming:
             line, self._incoming = self._incoming.split(b"\n", 1)
             if not self.legacy:
+                try:
+                    ack = json.loads(line)
+                    if ack.get("type") == "SETTINGS_ACK" and self.settings_sync is not None:
+                        from .movement_receiver import parse_hub_sync
+                        snapshot = {"type": "HUB_SYNC", **parse_hub_sync(ack["snapshot"])}
+                        if ack.get("operation_id") == self._sent_operation:
+                            self.settings_sync.acknowledge(self._sent_operation, snapshot)
+                            self._sent_operation = None
+                            self.send_settings()
+                except (ValueError, TypeError, KeyError, AttributeError):
+                    self.status.emit("Phone settings: invalid confirmation; reconnecting")
+                    self.socket.abort()
                 continue
             try:
                 config = json.loads(line)
@@ -104,6 +123,16 @@ class PiHubBridge(QObject):
             except (ValueError, TypeError, UnicodeError):
                 self.socket.abort()
                 return
+
+    def send_settings(self):
+        if self.settings_sync is None or not self.settings_sync.pending or self._sent_operation:
+            return
+        if self.legacy:
+            self.status.emit("Phone settings sync needs the GUI-managed hub; save remains local")
+            return
+        operation = self.settings_sync.pending[0]
+        if self._write(operation):
+            self._sent_operation = operation["operation_id"]
 
     def _legacy_matches(self):
         config = self._remote_config

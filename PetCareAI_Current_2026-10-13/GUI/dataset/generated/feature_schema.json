@@ -1,0 +1,137 @@
+{
+  "model_inputs": [
+    "eat_occupancy_seconds",
+    "eat_visit_count",
+    "eat_longest_stay_seconds",
+    "eat_first_activity_hour",
+    "eat_last_activity_hour",
+    "eat_night_fraction",
+    "sleep_occupancy_seconds",
+    "sleep_visit_count",
+    "sleep_longest_stay_seconds",
+    "sleep_first_activity_hour",
+    "sleep_last_activity_hour",
+    "sleep_night_fraction",
+    "water_occupancy_seconds",
+    "water_visit_count",
+    "water_longest_stay_seconds",
+    "water_first_activity_hour",
+    "water_last_activity_hour",
+    "water_night_fraction",
+    "toilet_occupancy_seconds",
+    "toilet_visit_count",
+    "toilet_longest_stay_seconds",
+    "toilet_first_activity_hour",
+    "toilet_last_activity_hour",
+    "toilet_night_fraction"
+  ],
+  "metadata_columns": [
+    "date",
+    "source",
+    "scenario",
+    "seed",
+    "session_id",
+    "clock_scale",
+    "configuration",
+    "configuration_origin",
+    "eat_coverage",
+    "sleep_coverage",
+    "water_coverage",
+    "toilet_coverage"
+  ],
+  "missing_value": "empty CSV cell (NaN in pandas); never fill missing occupancy with zero",
+  "units": "durations: seconds; timing: local logical hours 0-24; night: 22:00-06:00",
+  "minimum_coverage": 0.95,
+  "resolution_seconds": 60,
+  "assumptions": {
+    "baseline": {
+      "sleep": {
+        "stays": [
+          [
+            0,
+            6
+          ],
+          [
+            10,
+            2
+          ],
+          [
+            14,
+            2
+          ],
+          [
+            22,
+            2
+          ]
+        ],
+        "jitter_hours": 0.25
+      },
+      "toilet": {
+        "stays": [
+          [
+            7,
+            0.08
+          ],
+          [
+            13,
+            0.06
+          ],
+          [
+            20,
+            0.08
+          ]
+        ],
+        "jitter_hours": 0.3
+      }
+    },
+    "changed_routine": {
+      "sleep": {
+        "stays": [
+          [
+            1,
+            3
+          ],
+          [
+            12,
+            1
+          ],
+          [
+            18,
+            1
+          ]
+        ],
+        "jitter_hours": 0.4
+      },
+      "toilet": {
+        "stays": [
+          [
+            5,
+            0.16
+          ],
+          [
+            8,
+            0.15
+          ],
+          [
+            11,
+            0.18
+          ],
+          [
+            14,
+            0.16
+          ],
+          [
+            17,
+            0.18
+          ],
+          [
+            21,
+            0.15
+          ]
+        ],
+        "jitter_hours": 0.3
+      }
+    }
+  },
+  "limitations": "Food/water level sensors cannot measure visits. Synthetic assumptions are not clinical labels."
+}

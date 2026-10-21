@@ -221,7 +221,7 @@ class TelegramAdminTests(unittest.TestCase):
         for secret in (TOKEN, PASSWORD, self.code()):
             self.assertNotIn(secret, output)
 
-    def test_login_request_button_sends_in_background_and_keeps_card(self):
+    def test_sign_in_automatically_requests_otp_in_background_and_keeps_card(self):
         self.enrol()
         db = DatabaseService(Path(self.folder.name) / "ui.db")
         page = LoginPage(self.auth, db)
@@ -231,12 +231,47 @@ class TelegramAdminTests(unittest.TestCase):
             page.login_button.click()
             self.assertTrue(page.request_button.isVisible())
             self.assertFalse(self.auth.is_authenticated)
-            page.request_button.click()
             self.assertTrue(wait_for(lambda: not page.request.busy))
+            self.assertEqual(self.sender.call_count, 2)  # setup + automatic login OTP
             self.assertIn("sent to Telegram", page.status.text())
             page.otp.setText(self.code())
             page.verify_button.click()
             self.assertTrue(self.auth.is_authenticated)
+        finally:
+            page.close()
+            db.close()
+
+    def test_restart_loads_saved_telegram_details_and_sign_in_requests_otp(self):
+        self.enrol()
+        restarted = self.service()
+        self.assertEqual(restarted.state, "ready")
+        self.assertEqual(restarted.factor_mode, "telegram")
+        db = DatabaseService(Path(self.folder.name) / "restart-ui.db")
+        page = LoginPage(restarted, db)
+        try:
+            page.password.setText(PASSWORD)
+            page.login_button.click()
+            self.assertTrue(wait_for(lambda: not page.request.busy))
+            self.assertIn("sent to Telegram", page.status.text())
+            self.assertEqual(self.sender.call_count, 2)
+            self.assertFalse(restarted.is_authenticated)
+            page.otp.setText(self.code())
+            page.verify_button.click()
+            self.assertTrue(restarted.is_authenticated)
+        finally:
+            page.close()
+            db.close()
+
+    def test_wrong_password_does_not_automatically_send_otp(self):
+        self.enrol()
+        db = DatabaseService(Path(self.folder.name) / "wrong-ui.db")
+        page = LoginPage(self.auth, db)
+        try:
+            page.password.setText("incorrect-password")
+            page.login_button.click()
+            self.assertEqual(self.sender.call_count, 1)  # setup only
+            self.assertFalse(page.request.busy)
+            self.assertFalse(self.auth.is_authenticated)
         finally:
             page.close()
             db.close()

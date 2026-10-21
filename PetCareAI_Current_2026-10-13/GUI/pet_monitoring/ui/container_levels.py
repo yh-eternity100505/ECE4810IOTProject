@@ -1,3 +1,4 @@
+import copy
 from PySide6.QtWidgets import QHBoxLayout, QProgressBar, QFormLayout, QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView
 from .widgets import Card, label, button
 from .pet_profile_page import number
@@ -76,6 +77,7 @@ class LevelCalibration(Card):
         self.hub = hub
         self.box.addWidget(label("Measure sensor-to-surface distance at full and empty. Leave litres at 0 if unknown. Calibration belongs to the physical sensor/container; recalibrate if you move it.", "muted", True))
         self.fields = {}
+        self._displayed_calibration = copy.deepcopy(hub.level_calibration)
         for sensor_id in hub.states:
             card = Card(f"Sensor {sensor_id}")
             saved = hub.level_calibration.get(sensor_id, {})
@@ -106,8 +108,13 @@ class LevelCalibration(Card):
         """Show calibration values after the Pi hub updated them."""
         for sensor_id, (card, full, empty, capacity, linear) in self.fields.items():
             saved = self.hub.level_calibration.get(sensor_id, {})
+            if saved == self._displayed_calibration.get(sensor_id, {}):
+                continue  # Keep unsaved edits intact during repeated phone refreshes.
+            self._displayed_calibration[sensor_id] = copy.deepcopy(saved)
             full.setValue(saved.get("full_cm", 0))
             empty.setValue(saved.get("empty_cm", 0))
+            capacity.setValue(saved.get("capacity_l", 0))
+            linear.setChecked(saved.get("linear_volume", False))
         self.refresh()
 
     def save(self):
@@ -119,5 +126,7 @@ class LevelCalibration(Card):
                 values.pop(sensor_id, None)
                 continue
             values[sensor_id] = {"full_cm": full.value(), "empty_cm": empty.value(), "capacity_l": capacity.value(), "linear_volume": linear.isChecked()}
-        _, text = self.hub.save_level_calibration(values)
+        success, text = self.hub.save_level_calibration(values)
+        if success:
+            self._displayed_calibration = copy.deepcopy(values)
         self.feedback.setText(text)

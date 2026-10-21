@@ -1,5 +1,7 @@
 """Bounded newline-delimited JSON receiver; never touches widgets or SQLite."""
 import json
+import queue
+import time
 import math
 import os
 import socket
@@ -70,10 +72,13 @@ def parse_hub_sync(message):
                 calibration = {"full_cm": float(full), "empty_cm": float(empty)}
             entry.update(role=value["role"], threshold_cm=_number(value.get("threshold_cm"), 1, 400, "threshold"), calibration=calibration)
         clean_sensors[key] = entry
+    settings_version = message.get("settings_version")
+    if settings_version is not None and (type(settings_version) is not int or settings_version < 0):
+        raise ValueError("Invalid settings version")
     revision, total = message.get("revision"), message.get("pets_total")
     if type(revision) is not int or revision < 1 or type(total) is not int or total < 1:
         raise ValueError("Invalid hub sync")
-    return {"revision": revision, "pets_total": total, "pet": clean_pet, "sensors": clean_sensors}
+    return {**({"settings_version": settings_version} if settings_version is not None else {}), "revision": revision, "pets_total": total, "pet": clean_pet, "sensors": clean_sensors}
 
 
 def parse_message(line):
@@ -155,6 +160,9 @@ class MovementReceiver(QObject):
         self.port = None
         self._config_lock = threading.Lock()
         self._config = None
+        self._door_commands = queue.Queue(maxsize=16)
+        self._client_generation = 0
+        self._client_active = False
         self._codec = codec
         self._secure = codec is not None
         self._last_inspection = -float("inf")
@@ -162,6 +170,18 @@ class MovementReceiver(QObject):
     def set_configuration(self, configuration):
         with self._config_lock:
             self._config = json.dumps(configuration, allow_nan=False).encode("utf-8") + b"\n"
+
+    def send_door_command(self, action):
+        if action not in {"AUTH_OK", "OTP_OK", "RESET"}:
+            raise ValueError("Unknown entrance command")
+        with self._config_lock:
+            if not self._client_active:
+                return False
+            try:
+                self._door_commands.put_nowait((self._client_generation, time.monotonic()+3, action))
+                return True
+            except queue.Full:
+                return False
 
     def start(self, host="0.0.0.0", port=5005):
         self.stop()
@@ -239,6 +259,9 @@ class MovementReceiver(QObject):
                     continue
                 except OSError:
                     break
+                with self._config_lock:
+                    self._client_generation += 1
+                    self._client_active = True
                 self.status.emit(f"Raspberry Pi connected · {address[0]}")
                 with client:
                     client.settimeout(.2)
@@ -256,6 +279,14 @@ class MovementReceiver(QObject):
                                     outgoing = json.dumps(packet, allow_nan=False).encode("utf-8") + b"\n"
                                 client.sendall(outgoing)
                                 sent_configuration = configuration
+                            while not self._door_commands.empty():
+                                generation, deadline, action = self._door_commands.get_nowait()
+                                if generation != self._client_generation or time.monotonic() >= deadline:
+                                    continue
+                                command = {"type": "DOOR_COMMAND", "action": action}
+                                if self._secure:
+                                    command = self._codec.encode(command)
+                                client.sendall(json.dumps(command, allow_nan=False).encode("utf-8") + b"\n")
                             data = client.recv(4096)
                             if not data:
                                 break
@@ -277,5 +308,7 @@ class MovementReceiver(QObject):
                             print(f"[RECEIVER ERROR] {type(exc).__name__}: {exc}", flush=True)
                             self.status.emit(f"Invalid message: {exc} · waiting for reconnect")
                             break
+                with self._config_lock:
+                    self._client_active = False
                 if not self._stop.is_set():
                     self.status.emit("Listening · Raspberry Pi disconnected")

@@ -895,8 +895,8 @@ async function loadSettings() {
 
     <h2>Sensors</h2>
     <form class="card" id="sensor-form">
-      ${s.dashboard_source ? '<p class="muted small">Live readings arrive from the desktop GUI over SSH. Change sensor assignments in the desktop Sensor Hub.</p>' : ''}
-      <fieldset ${s.dashboard_source ? 'disabled' : ''} style="border:0;padding:0;margin:0;min-width:0">
+      ${s.dashboard_source ? '<p class="muted small">Live readings arrive over SSH. Save sensors or calibration here or in the desktop GUI; the latest save accepted by the Pi updates both.</p>' : ''}
+      <fieldset style="border:0;padding:0;margin:0;min-width:0">
       ${Object.entries(s.sensors.mapping).map(([id, mode]) => `<div class="grid"><div><label>Sensor ${id}</label><select name="m${id}">${modeOptions(mode)}</select></div>
         <div><label>Presence below (cm)</label><input name="t${id}" type="number" step="0.5" min="1" max="400" value="${s.sensors.thresholds[id]}"></div></div>`).join("")}
       <p class="muted small" style="margin-top:10px">Sensor 5 is always the entrance gesture sensor. Setup revision ${s.sensors.revision} · ${status && status.link.configured ? "confirmed by the Pi" : "waiting for the Pi"}.</p>

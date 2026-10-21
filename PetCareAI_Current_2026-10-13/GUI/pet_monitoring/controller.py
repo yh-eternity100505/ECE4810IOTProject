@@ -66,6 +66,10 @@ class MonitoringController(QObject):
         self._capture_secure_demo = False
         self.security = SecurityService(event_sink=self.record_security_event)
         self.auth = AuthenticationService(database, self._auth_event)
+        if self.settings["telegram_mode"] == "Real":
+            service = self._telegram_service()
+            self.telegram_status = ("Disabled" if not service.enabled else
+                                    "Configured" if service.token and service.chat_id else "Not configured")
         self.pet_id = database.get("pet_id", "PET001")
         self._previous_presence = set()
         self._previous_connections = {}
@@ -319,8 +323,16 @@ class MonitoringController(QObject):
             self._raise_once("baseline:" + alert.category, alert)
 
     def _telegram_service(self):
-        service = TelegramService(self.settings["telegram_mode"], self.credentials.load(),
-                                  self.settings["telegram_chat_id"], self.settings["telegram_enabled"])
+        mode = self.settings["telegram_mode"]
+        enabled = self.settings["telegram_enabled"]
+        token, chat = self.credentials.load(), self.settings["telegram_chat_id"]
+        # Login enrollment and alert settings used to be completely separate.
+        # Reuse the verified pair only when BOTH alert fields are blank; never
+        # mix a token with another chat or override an explicit alert destination.
+        if (mode == "Real" and enabled and not token and not chat
+                and self.settings.get("telegram_use_admin", True)):
+            token, chat = self.auth.notification_destination()
+        service = TelegramService(mode, token, chat, enabled)
         service.network_available = self.network_online
         return service
 
@@ -387,7 +399,9 @@ class MonitoringController(QObject):
             if settings["mock_mode"]:
                 self.db.seed_demo()
             self.summary = self._load_summary()
-        self.telegram_status = "Mock" if settings["telegram_mode"] == "Mock" else "Configured" if self.credentials.load() else "Not configured"
+        service = self._telegram_service()
+        self.telegram_status = ("Disabled" if not service.enabled else "Mock" if service.mode == "Mock"
+                                else "Configured" if service.token and service.chat_id else "Not configured")
         if self.timer.isActive():
             self.start()
         self.settings_changed.emit()
