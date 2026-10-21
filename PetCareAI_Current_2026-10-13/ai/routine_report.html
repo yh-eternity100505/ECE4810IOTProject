@@ -1,0 +1,45 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Routine AI report</title><style>
+:root{--bg:#f6f1ff;--card:#fff;--text:#2a2140;--muted:#74698f;--line:#ebe3fb}
+@media(prefers-color-scheme:dark){:root{--bg:#1a1428;--card:#251d38;--text:#f3edff;--muted:#b3a7d1;--line:#3a2f57}}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,Segoe UI,sans-serif}
+main{max-width:1100px;margin:auto;padding:24px 16px} h1{margin:0 0 4px} .muted{color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;margin-top:18px}
+.card{background:var(--card);border-radius:20px;padding:16px;box-shadow:0 8px 24px rgba(124,58,237,.10)} h3{margin:0 0 10px}
+.row{display:flex;align-items:baseline;gap:10px;margin-top:8px} .row b{flex:1;font-weight:600} .num{font-size:26px;font-weight:800} .tag{color:var(--muted);font-size:13px;width:110px;text-align:right}
+.bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden} .bar span{display:block;height:100%}
+.why{margin:10px 0;font-weight:600} table{width:100%;border-collapse:collapse;font-size:13px} td{padding:4px 2px;border-top:1px solid var(--line)} td:nth-child(n+2){text-align:right} .hi{color:#d63a55;font-weight:800}
+</style></head><body><main>
+<h1>Routine AI · how unusual is each day?</h1>
+<p class="muted">Learned from 30 normal days. The model compares the whole day (all 7 behaviours together) with the pet's usual routine, using the Mahalanobis distance with a shrinkage covariance. 100 = typical; below 50 = more unusual than 95% of normal days; 0 = more unusual than 99.9%. The current formula only checks total sleep and litter visits one at a time. Behaviour monitoring, not a veterinary diagnosis.</p>
+<div class="grid">
+      <div class="card"><h3>Fri 16 Oct 2026</h3>
+        <div class="row"><b>AI routine score</b><span class="num" style="color:#1f9a68">100</span><span class="tag">Typical</span></div><div class="bar"><span style="width:100%;background:#1f9a68"></span></div>
+        <div class="row"><b>Current formula</b><span class="num">99</span><span class="tag">Normal</span></div><div class="bar"><span style="width:99%;background:#9b8fc4"></span></div>
+        <p class="why">close to the usual routine</p>
+        <table><tr><td>Night sleep (22:00-07:00)</td><td>8h</td><td>usual 8.1h</td><td class="">-0.2σ</td></tr><tr><td>Daytime rest</td><td>5h</td><td>usual 5.1h</td><td class="">-0.1σ</td></tr><tr><td>Number of rests</td><td>6</td><td>usual 6.1</td><td class="">-0.1σ</td></tr><tr><td>Litter box visits</td><td>3</td><td>usual 3.0</td><td class="">+0.0σ</td></tr><tr><td>Food eaten (bowl %)</td><td>58%</td><td>usual 57.3%</td><td class="">+0.1σ</td></tr><tr><td>Water drunk (bowl %)</td><td>46%</td><td>usual 45.0%</td><td class="">+0.2σ</td></tr><tr><td>Entrance activity</td><td>4</td><td>usual 4.0</td><td class="">-0.0σ</td></tr></table>
+      </div>
+      <div class="card"><h3>Sat 17 Oct 2026</h3>
+        <div class="row"><b>AI routine score</b><span class="num" style="color:#1f9a68">100</span><span class="tag">Typical</span></div><div class="bar"><span style="width:100%;background:#1f9a68"></span></div>
+        <div class="row"><b>Current formula</b><span class="num">96</span><span class="tag">Normal</span></div><div class="bar"><span style="width:96%;background:#9b8fc4"></span></div>
+        <p class="why">Daytime rest -1.7σ, Entrance activity +1.2σ, Number of rests -1.1σ</p>
+        <table><tr><td>Night sleep (22:00-07:00)</td><td>8.3h</td><td>usual 8.1h</td><td class="">+0.6σ</td></tr><tr><td>Daytime rest</td><td>4h</td><td>usual 5.1h</td><td class="">-1.7σ</td></tr><tr><td>Number of rests</td><td>5</td><td>usual 6.1</td><td class="">-1.1σ</td></tr><tr><td>Litter box visits</td><td>3</td><td>usual 3.0</td><td class="">+0.0σ</td></tr><tr><td>Food eaten (bowl %)</td><td>60%</td><td>usual 57.3%</td><td class="">+0.5σ</td></tr><tr><td>Water drunk (bowl %)</td><td>47%</td><td>usual 45.0%</td><td class="">+0.5σ</td></tr><tr><td>Entrance activity</td><td>6</td><td>usual 4.0</td><td class="">+1.2σ</td></tr></table>
+      </div>
+      <div class="card"><h3>Sun 18 Oct 2026</h3>
+        <div class="row"><b>AI routine score</b><span class="num" style="color:#d63a55">24</span><span class="tag">Unusual</span></div><div class="bar"><span style="width:24%;background:#d63a55"></span></div>
+        <div class="row"><b>Current formula</b><span class="num">94</span><span class="tag">Normal</span></div><div class="bar"><span style="width:94%;background:#9b8fc4"></span></div>
+        <p class="why">Water drunk (bowl %) -2.5σ, Daytime rest +2.1σ, Food eaten (bowl %) -1.5σ</p>
+        <table><tr><td>Night sleep (22:00-07:00)</td><td>8h</td><td>usual 8.1h</td><td class="">-0.2σ</td></tr><tr><td>Daytime rest</td><td>6.4h</td><td>usual 5.1h</td><td class="hi">+2.1σ</td></tr><tr><td>Number of rests</td><td>6</td><td>usual 6.1</td><td class="">-0.1σ</td></tr><tr><td>Litter box visits</td><td>3</td><td>usual 3.0</td><td class="">+0.0σ</td></tr><tr><td>Food eaten (bowl %)</td><td>50%</td><td>usual 57.3%</td><td class="">-1.5σ</td></tr><tr><td>Water drunk (bowl %)</td><td>34%</td><td>usual 45.0%</td><td class="hi">-2.5σ</td></tr><tr><td>Entrance activity</td><td>4</td><td>usual 4.0</td><td class="">-0.0σ</td></tr></table>
+      </div>
+      <div class="card"><h3>Mon 19 Oct 2026</h3>
+        <div class="row"><b>AI routine score</b><span class="num" style="color:#1f9a68">100</span><span class="tag">Typical</span></div><div class="bar"><span style="width:100%;background:#1f9a68"></span></div>
+        <div class="row"><b>Current formula</b><span class="num">99</span><span class="tag">Normal</span></div><div class="bar"><span style="width:99%;background:#9b8fc4"></span></div>
+        <p class="why">Water drunk (bowl %) -1.6σ</p>
+        <table><tr><td>Night sleep (22:00-07:00)</td><td>8h</td><td>usual 8.1h</td><td class="">-0.2σ</td></tr><tr><td>Daytime rest</td><td>5h</td><td>usual 5.1h</td><td class="">-0.1σ</td></tr><tr><td>Number of rests</td><td>6</td><td>usual 6.1</td><td class="">-0.1σ</td></tr><tr><td>Litter box visits</td><td>3</td><td>usual 3.0</td><td class="">+0.0σ</td></tr><tr><td>Food eaten (bowl %)</td><td>59%</td><td>usual 57.3%</td><td class="">+0.3σ</td></tr><tr><td>Water drunk (bowl %)</td><td>38%</td><td>usual 45.0%</td><td class="">-1.6σ</td></tr><tr><td>Entrance activity</td><td>4</td><td>usual 4.0</td><td class="">-0.0σ</td></tr></table>
+      </div>
+      <div class="card"><h3>Tue 20 Oct 2026</h3>
+        <div class="row"><b>AI routine score</b><span class="num" style="color:#d63a55">0</span><span class="tag">Unusual</span></div><div class="bar"><span style="width:0%;background:#d63a55"></span></div>
+        <div class="row"><b>Current formula</b><span class="num">62</span><span class="tag">Attention</span></div><div class="bar"><span style="width:62%;background:#9b8fc4"></span></div>
+        <p class="why">Litter box visits +6.0σ</p>
+        <table><tr><td>Night sleep (22:00-07:00)</td><td>8h</td><td>usual 8.1h</td><td class="">-0.2σ</td></tr><tr><td>Daytime rest</td><td>5.1h</td><td>usual 5.1h</td><td class="">+0.0σ</td></tr><tr><td>Number of rests</td><td>6</td><td>usual 6.1</td><td class="">-0.1σ</td></tr><tr><td>Litter box visits</td><td>7</td><td>usual 3.0</td><td class="hi">+6.0σ</td></tr><tr><td>Food eaten (bowl %)</td><td>57%</td><td>usual 57.3%</td><td class="">-0.1σ</td></tr><tr><td>Water drunk (bowl %)</td><td>47%</td><td>usual 45.0%</td><td class="">+0.5σ</td></tr><tr><td>Entrance activity</td><td>4</td><td>usual 4.0</td><td class="">-0.0σ</td></tr></table>
+      </div></div></main></body></html>

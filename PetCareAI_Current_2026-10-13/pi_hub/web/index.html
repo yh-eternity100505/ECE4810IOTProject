@@ -197,6 +197,55 @@ details[open] > summary { border-bottom: 1px solid var(--line); }
 .sec-body > .card + .card, .sec-body > * + .card { margin-top: 12px; }
 .sec-body .editor { box-shadow: none; padding: 14px; border-radius: 18px; }
 .settings-title { margin: 6px 4px 2px; }
+/* Wellness score (routine AI) card */
+.rt-day { padding: 12px 0; border-top: 1px solid var(--line); }
+.rt-day:first-of-type { border-top: 0; padding-top: 4px; }
+.rt-bars { display: grid; grid-template-columns: 92px 1fr 64px; gap: 6px 10px; align-items: center; margin-top: 8px; font-size: 13px; }
+.rt-bars .bar { margin: 0; }
+.rt-bars b { text-align: right; font-size: 16px; }
+.rt-why { font-size: 13px; color: var(--muted); margin-top: 6px; }
+.rt-try { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+.rt-try summary { cursor: pointer; font-weight: 800; color: var(--accent); }
+/* Wellness score card */
+.wb-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.wb-head h3 { margin: 0; font-size: 18px; }
+.info-btn { width: 22px; height: 22px; border-radius: 50%; padding: 0; background: none; border: 1.5px solid var(--muted); color: var(--muted); font: 700 12px/19px system-ui, sans-serif; opacity: .8; }
+.info-btn[aria-expanded="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); opacity: 1; }
+details.rt-tune { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+details.rt-tune > summary { cursor: pointer; font-weight: 800; color: var(--accent); }
+.tune-row { margin-top: 12px; }
+.tune-row .row { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
+.tune-row input { width: 100%; accent-color: var(--accent); }
+.wb-info { background: var(--surface-2); border-radius: 14px; padding: 10px 12px; margin-top: 10px; font-size: 13px; color: var(--muted); }
+.wb { margin-top: 10px; }
+.wb-track { position: relative; height: 14px; border-radius: 99px; background: var(--surface-2); }
+.wb-ai { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; }
+.wb-legend { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
+.wb-legend .wb-num { font-size: 15px; color: var(--muted); }
+.wb-legend .wb-num b { font-size: 22px; margin-left: 4px; }
+.wb-pill { font-size: 14px; font-weight: 800; padding: 5px 14px; border-radius: 99px; }
+.wb-pill.ok { background: var(--ok-soft); color: var(--ok); } .wb-pill.warn { background: var(--warn-soft); color: var(--warn); } .wb-pill.bad { background: var(--bad-soft); color: var(--bad); }
+details.rt-day { padding: 16px 0; border-top: 1px solid var(--line); }
+details.rt-day > summary { list-style: none; cursor: pointer; }
+details.rt-day > summary::-webkit-details-marker { display: none; }
+.rt-head { display: flex; align-items: center; gap: 8px; }
+.rt-head b { flex: 1; font-size: 17px; }
+.rt-tag { font-size: 13px; font-weight: 700; color: var(--accent); }
+details.rt-day[open] .chev { transform: rotate(90deg); }
+.rt-detail { margin-top: 12px; background: var(--surface-2); border-radius: 14px; padding: 12px 14px; font-size: 14px; }
+.rt-detail table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+.rt-detail td { padding: 5px 2px; border-top: 1px solid var(--line); }
+.rt-detail td + td { text-align: right; white-space: nowrap; }
+.rt-detail .hi { color: var(--bad); font-weight: 800; }
+.live-box { margin: 16px 0 2px; }
+.live-box.on { background: var(--surface-2); border-radius: 18px; padding: 12px 14px; }
+.live-btn { width: 100%; }
+.live-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.live-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--bad); margin-right: 6px; animation: pulse 1.2s infinite; }
+@keyframes pulse { 50% { opacity: .3; } }
+.live-score { font-size: 40px; font-weight: 800; line-height: 1; }
+.live-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: 13px; margin-top: 8px; }
+.live-box input[type=range] { padding: 0; accent-color: var(--accent); }
 .cipher { font: 12px/1.5 ui-monospace, Menlo, Consolas, monospace; word-break: break-all; background: var(--surface-2); border-radius: 12px; padding: 10px; margin-top: 6px; color: var(--text); }
 .sec-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; text-align: center; }
 .sec-grid div { background: var(--surface-2); border-radius: 14px; padding: 10px 4px; } .sec-grid b { display: block; font-size: 20px; }
@@ -238,8 +287,8 @@ const ICONS = {
   access: '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M15 8l2 2"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
 };
-const TABS = [["home","Home"],["twin","3D"],["activity","Activity"],["alerts","Alerts"],["access","Access"],["settings","Settings"]];
-const GESTURES = {PASS_BY: "Walked past", APPROACH_STAY: "Waited at the door", AUTH_GESTURE: "Unlock gesture", ACCESS_GRANTED: "Access granted"};
+const TABS = [["home","Home"],["twin","3D"],["activity","Activity"],["alerts","Alerts"],["settings","Settings"]];
+const GESTURES = {PASS_BY: "Walked past", APPROACH_STAY: "Waited at the door", AUTH_GESTURE: "Unlock gesture", ACCESS_GRANTED: "Access granted", ACCESS_CANCELLED: "Unlock cancelled"};
 const PLACES = {eat: "food bowl", water: "water bowl", sleep: "bed", toilet: "litter box"};
 const AVATARS = {cat: "🐱", dog: "🐶", rabbit: "🐰", hamster: "🐹", guinea_pig: "🐭", bird: "🐦", fish: "🐠", turtle: "🐢"};
 const STATION = {eat: "🥣", sleep: "🛏️", water: "💧", toilet: "🧻"};
@@ -350,6 +399,7 @@ async function refresh() {
   badge.textContent = status.alerts.unread; badge.classList.toggle("hidden", !status.alerts.unread);
   if (tab === "home") renderHome();
   if (tab === "twin") updateTwin();
+  if (tab === "activity" && liveOn) updateLive();
   if (tab === "access") renderAccess();
   if (tab === "settings" && $("mirror-state")) $("mirror-state").innerHTML = mirrorStates();
   if (tab === "settings" && $("sec-panel") && !document.activeElement?.closest?.("#sec-panel")) securityPanel();
@@ -408,7 +458,6 @@ function renderHome() {
     ${s.reminders_due.length ? `<h2>Care reminders</h2><div class="card">${s.reminders_due.slice(0, 3).map((r) => `
       <div class="rem">${avatar(r.pet_avatar, "sm")}<div class="what"><b>${KINDS[r.kind][0]} ${esc(r.title)}</b><span class="muted small">${esc(r.pet_name)} · ${esc(r.due)}</span></div>${dueBadge(r.days_left)}</div>`).join("")}
       <div class="actions"><button class="ghost small" onclick="go('settings')">Manage reminders</button></div></div>` : ""}
-    ${s.access.window_open ? `<div class="banner">Someone made the unlock gesture at the entrance.<br><button class="small" onclick="go('access')">Open Access</button></div>` : ""}
     <h2>Right now</h2>
     <div class="grid">${s.zones.map(tile).join("")}</div>
     <h2>Today</h2>
@@ -499,6 +548,7 @@ async function loadActivity() {
   let a; try { a = await api("/api/activity?days=7"); } catch (e) { return; }
   if (tab !== "activity") return;
   $("view").innerHTML = `
+    <div id="routine" style="margin-top:14px"><div class="card"><p class="muted">Loading the wellness model…</p></div></div>
     <h2>Sleep · last 7 days</h2>
     <div class="card">${chart(a.days, "sleep_hours", a.baseline.sleep_hours, hours, " h")}<p class="muted small">Hours per day. Dashed line: usual ${hours(a.baseline.sleep_hours)}. Today is lighter because it isn't finished.</p></div>
     <h2>Litter box visits · last 7 days</h2>
@@ -515,6 +565,98 @@ async function loadActivity() {
     if (b) b.onclick = () => { expanded[id] = !expanded[id]; draw(id); };
   };
   draw("visits"); draw("gestures");
+  loadRoutine();
+}
+
+// ---------- routine AI ----------
+let liveOn = false, liveBusy = false, liveRestart = false, wbInfo = false, tuneOpen = false;
+// Slider range per unit: hours, bowl %, counts.
+const TUNE_RANGE = {h: [3, 0.1], "%": [25, 1], "": [5, 0.5]};
+const fmtTol = (v, unit) => `±${(+v).toFixed(unit === "h" ? 1 : unit === "%" ? 0 : 1)}${unit}`;
+// The score uses whichever is bigger: the tolerance set here or the spread it learned.
+const tolLabel = (v, learned, unit) => +v > learned ? fmtTol(v, unit) : `${fmtTol(learned, unit)} (learned)`;
+function tuneRow(f) {
+  const [max, step] = TUNE_RANGE[f.unit] || [10, 0.5];
+  return `<div class="tune-row"><div class="row"><span>${esc(f.label)}</span><b id="tv-${f.key}">${tolLabel(f.tolerance, f.learned_std, f.unit)}</b></div>
+    <input type="range" data-tune="${f.key}" data-unit="${esc(f.unit)}" data-learned="${f.learned_std}" min="0" max="${max}" step="${step}" value="${f.tolerance}">
+    <p class="muted small">Learned from the normal days: ${fmtTol(f.learned_std, f.unit)} · usual ${f.usual}${esc(f.unit)}</p></div>`;
+}
+async function updateLive(action, force = false) {
+  if ((liveBusy && !force) || !$("live-out")) return;
+  liveBusy = true;
+  try {
+    const d = await api("/api/routine/live", {action: action || "read"});
+    if (!$("live-out")) return;
+    const v = Object.fromEntries(d.values.map((x) => [x.key, x])), L = d.live;
+    const why = d.reasons.length ? d.reasons.map((r) => `${r.label} ${r.z > 0 ? "+" : ""}${r.z}σ`).join(" · ") : "Close to the usual routine";
+    $("live-out").innerHTML = `
+      ${wellBar(d)}
+      <p class="rt-why">${esc(why)}</p>
+      <div class="live-facts">
+        <span>🛏️ Daytime rest <b>${v.day_rest_h.value} h</b></span><span>Rests <b>${v.rest_count.value}</b></span>
+        <span>🧻 Litter visits <b>${v.litter_visits.value}</b></span><span>🚪 Entrance <b>${v.entrance_events.value}</b></span>
+        <span>💧 Water drunk <b>${v.water_drunk_pct.value}%</b></span><span class="muted">${L.water ? `Bowl ${L.water.start}% → ${L.water.now}%` : "Water sensor: no reading"}</span>
+        <span class="muted">Live for ${L.elapsed}s</span><span class="muted">Bed time seen: ${Math.round(L.rest_seconds)} s</span>
+      </div>`;
+  } catch (e) { if ($("live-out")) $("live-out").innerHTML = `<p class="muted small">${esc(e.message)}</p>`; }
+  finally { liveBusy = false; }
+}
+const rtColour = (v) => v >= 70 ? "var(--ok)" : v >= 50 ? "var(--warn)" : "var(--bad)";
+// One bar: AI wellness (coloured) drawn over the old formula (grey band ending at a marker).
+const rtTone = (v) => v >= 70 ? "ok" : v >= 50 ? "warn" : "bad";
+function wellBar(d) {
+  return `<div class="wb"><div class="wb-track"><span class="wb-ai" style="width:${Math.max(d.score, 2)}%;background:${rtColour(d.score)}"></span></div>
+    <div class="wb-legend"><span class="wb-num">Wellness Score<b style="color:${rtColour(d.score)}">${d.score}</b></span><span class="wb-pill ${rtTone(d.score)}">${esc(d.status)}</span></div></div>`;
+}
+const whyText = (d) => d.reasons.length ? d.reasons.map((r) => `${r.label} ${r.z > 0 ? "+" : ""}${r.z}σ`).join(" · ") : "Close to the usual routine";
+function routineDay(d, open = false) {
+  return `<details class="rt-day" ${open ? "open" : ""}><summary>
+      <div class="rt-head"><b>${esc(d.name)}</b><span class="rt-tag">Analysis</span><span class="chev">›</span></div>
+      ${wellBar(d)}</summary>
+    <div class="rt-detail">
+      <p><b>Why:</b> ${esc(whyText(d))}</p>
+      <table>
+        <tr><td class="muted">Behaviour</td><td class="muted">This day</td><td class="muted">Usual</td><td class="muted">σ</td></tr>
+        ${d.values.map((v) => `<tr><td>${esc(v.label)}</td><td>${v.value}${v.unit}</td><td>${v.usual}${v.unit}</td><td class="${Math.abs(v.z) >= 2 ? "hi" : ""}">${v.z > 0 ? "+" : ""}${v.z}</td></tr>`).join("")}
+      </table>
+      <p class="muted" style="margin-top:8px">Wellness Score <b>${d.score}</b> · distance from the usual routine ${d.distance}. σ = how far a behaviour is from usual, in standard deviations.</p>
+    </div></details>`;
+}
+async function loadRoutine() {
+  let r;
+  try { r = await api("/api/routine"); }
+  catch (e) { if ($("routine")) $("routine").innerHTML = `<div class="card"><p class="muted">${esc(e.message)}</p></div>`; return; }
+  if (tab !== "activity" || !$("routine")) return;
+  $("routine").innerHTML = `<div class="card">
+    <div class="wb-head"><h3>🧠 Wellness score</h3><button class="info-btn" id="wb-info-btn" aria-expanded="${wbInfo}" aria-label="About the wellness score">i</button></div>
+    <div class="wb-info" id="wb-info" ${wbInfo ? "" : "hidden"}>
+      The AI learned ${status ? esc(status.pet.name) + "'s" : "the pet's"} normal routine from ${r.learned_days} days, looking at ${r.features.length} behaviours together:
+      ${r.features.map((f) => esc(f.label.toLowerCase())).join(", ")}.
+      It scores how unusual each day is: <b>100 = typical</b>, <b>under 50 = more unusual than 95% of normal days</b>.
+      Behaviour monitoring, not a veterinary diagnosis.</div>
+    ${r.days.map((d) => routineDay(d)).join("")}
+    <details class="rt-tune" id="rt-tune" ${tuneOpen ? "open" : ""}><summary>🎛️ Tune sensitivity</summary>
+      <p class="muted small" style="margin-top:6px">Tolerance = the smallest change the score treats as normal variation for that behaviour.
+        Higher = calmer score (small changes are ignored); 0 = use only what the AI learned. Noisy sensors need a higher tolerance.</p>
+      ${r.features.map(tuneRow).join("")}
+      <div class="row" style="margin-top:12px;gap:8px"><button class="small" id="tune-save">Save</button><button class="ghost small" id="tune-reset">Reset to defaults</button></div>
+    </details>
+    <div class="live-box ${liveOn ? "on" : ""}" id="live-box">
+      ${liveOn ? `<div class="live-head"><b><span class="live-dot"></span>Live demo day</b>
+        <span><button class="small" id="live-start">Restart</button> <button class="ghost small" id="live-stop">Stop</button></span></div>
+        <div id="live-out"></div>` : '<button class="live-btn" id="live-start">🔴 Live demo day</button>'}
+    </div>
+    </div>`;
+  $("wb-info-btn").onclick = () => { wbInfo = !wbInfo; $("wb-info").hidden = !wbInfo; $("wb-info-btn").setAttribute("aria-expanded", wbInfo); };
+  $("rt-tune").ontoggle = () => { tuneOpen = $("rt-tune").open; };
+  document.querySelectorAll("[data-tune]").forEach((el) => el.oninput = () => { $("tv-" + el.dataset.tune).textContent = tolLabel(el.value, +el.dataset.learned, el.dataset.unit); });
+  $("tune-save").onclick = (e) => guard(e.target, async () => {
+    const tuning = {}; document.querySelectorAll("[data-tune]").forEach((el) => tuning[el.dataset.tune] = +el.value);
+    await api("/api/routine/tuning", {tuning}); toast("Sensitivity saved"); await loadRoutine(); });
+  $("tune-reset").onclick = (e) => guard(e.target, async () => { await api("/api/routine/tuning", {reset: true}); toast("Back to the default sensitivity"); await loadRoutine(); });
+  $("live-start").onclick = () => { liveOn = true; liveRestart = true; loadRoutine(); };
+  if ($("live-stop")) $("live-stop").onclick = () => { liveOn = false; loadRoutine(); };
+  if (liveOn) { const restart = liveRestart; liveRestart = false; updateLive(restart ? "start" : undefined, restart); }
 }
 
 // ---------- alerts ----------
@@ -545,10 +687,10 @@ function renderAccess() {
   if (a.awaiting_code) body = `
       <label for="otp">Access code</label><input id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 digits">
       ${a.demo_code ? `<div class="code">${esc(a.demo_code)}</div><p class="muted small" style="margin-top:6px">Demo code: Telegram isn't set up, so the code is shown here.</p>` : ""}
-      <div class="actions"><button id="verify">Verify code</button></div>`;
+      <div class="actions"><button id="verify">Verify code</button><button class="danger" data-cancel-access>Cancel</button></div>`;
   else if (a.window_open) body = `
       <label for="who">Username</label><input id="who" autocomplete="username" placeholder="Your username">
-      <div class="actions"><button id="send">Send me a code</button></div>`;
+      <div class="actions"><button id="send">Send me a code</button><button class="danger" data-cancel-access>Cancel</button></div>`;
   else body = `<p class="muted small" style="margin-top:8px">Make the unlock gesture in front of the entrance sensor. You'll then have 2 minutes to request a code here.</p>`;
   $("view").innerHTML = `
     <h2>Door access</h2>
@@ -559,6 +701,14 @@ function renderAccess() {
     <p class="muted small" style="margin:12px 4px">Prototype: no physical lock is connected. A verified code is recorded in the entrance history.</p>`;
   if ($("send")) $("send").onclick = (e) => guard(e.target, async () => { await api("/api/access/request", {username: $("who").value}); accessKey = ""; await refresh(); });
   if ($("verify")) $("verify").onclick = (e) => guard(e.target, async () => { const r = await api("/api/access/verify", {code: $("otp").value}); toast(r.ok ? "Access granted" : "Code not accepted"); accessKey = ""; await refresh(); });
+  bindCancelAccess();
+}
+function bindCancelAccess() {
+  document.querySelectorAll("[data-cancel-access]").forEach((b) => b.onclick = () => guard(b, async () => {
+    const r = await api("/api/access/cancel", {});
+    toast(r.ok ? "Unlock cancelled · access not granted" : "Nothing to cancel");
+    accessKey = ""; await refresh();
+  }));
 }
 
 // ---------- security panel (for demonstrating the EDC channel) ----------
@@ -707,7 +857,7 @@ async function loadSettings() {
   const s = settings, p = s.pet, t = s.telegram, n = s.notifications;
   const modeOptions = (current) => Object.entries(s.modes).map(([k, v]) => `<option value="${k}" ${k === current ? "selected" : ""}>${esc(v)}</option>`).join("");
   const bowls = Object.entries(s.sensors.mapping).filter(([, m]) => m === "eat" || m === "water");
-  const NOTE = {entrance: "Someone waiting at the door", access: "Unlock gesture detected", levels: "Food or water running low", sensors: "Sensor problems", baseline: "Unusual daily routine", reminders: "Care reminders due"};
+  const NOTE = {entrance: "Someone waiting at the door", access: "Door unlocked by gesture", levels: "Food or water running low", sensors: "Sensor problems", baseline: "Unusual daily routine", reminders: "Care reminders due"};
   $("view").innerHTML = `
     <h2>My pets</h2>
     <div class="pets">${s.pets.map((x) => `<button class="pet-card ${editingPet === x.id ? "selected" : ""}" data-pet="${x.id}">${avatar(x.avatar)}<b>${esc(x.name)}</b><span class="muted small">${x.id === s.monitored_pet ? "📡 Monitored" : esc(x.breed || x.animal || "")}</span></button>`).join("")}

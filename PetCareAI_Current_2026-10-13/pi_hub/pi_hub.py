@@ -49,6 +49,7 @@ CLASSES = {"PASS_BY", "APPROACH_STAY", "AUTH_GESTURE"}
 GESTURE_STATES = {"WAITING", "RECORDING", "CLASSIFYING", "WAIT_CLEAR"}
 
 STALE_SECONDS = 5            # zone reading older than this is treated as offline
+LEVEL_SMOOTHING = 9            # bowl level = median of this many recent readings
 SERVICE_OFFLINE_ALERT = 60   # sensor script disconnected this long -> alert
 ZONE_SILENT_ALERT = 120      # zone without a valid echo this long -> alert
 LOW_LEVEL, LEVEL_RECOVER, LOW_LEVEL_HOLD = 30.0, 40.0, 60
@@ -91,6 +92,7 @@ DEFAULT_SETTINGS = {
     "reminders": [],
     "anomaly_threshold": 0.30,
     "mirror": {"hosts": [], "port": 5005},
+    "wellness_tuning": {},     # per-behaviour tolerance for the wellness score, set in the app
 }
 MAX_MIRRORS = 5
 
@@ -317,7 +319,7 @@ class Hub:
         self._source_sensors = None
         self.lock = threading.RLock()
         self.executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="telegram")
-        self.states = {k: {"distance": None, "presence": False, "seen": 0.0, "valid_seen": 0.0, "since": None, "low_since": None}
+        self.states = {k: {"distance": None, "presence": False, "seen": 0.0, "valid_seen": 0.0, "since": None, "low_since": None, "recent": []}
                        for k in DEFAULT_MAPPING}
         self.connected = False
         self.peer = None
@@ -335,6 +337,7 @@ class Hub:
         self.last_day = db.meta("last_day", date.today().isoformat())
         self.mirror = None
         self._last_reminder_check = -1e9
+        self._live = None   # live routine demo: counters at the moment it started
         self.edc, self.edc_error = None, None
         self.door_commands = queue.Queue(maxsize=16)
 
@@ -461,6 +464,8 @@ class Hub:
         state.update(distance=distance, presence=presence, seen=now)
         if distance is not None:
             state["valid_seen"] = now
+            if mode in {"eat", "water"}:      # keep the last few bowl readings to smooth the level
+                state["recent"] = (state["recent"] + [(now, distance)])[-LEVEL_SMOOTHING:]
             self.conditions.discard("zone_silent:" + sensor_id)
         if mode in {"eat", "water"}:
             self._check_level(sensor_id, mode, now)
@@ -476,7 +481,10 @@ class Hub:
         if not calibration:
             return None
         full, empty = calibration["full_cm"], calibration["empty_cm"]
-        return max(0.0, min(100.0, 100 * (empty - state["distance"]) / (empty - full)))
+        # Median of the recent readings: one noisy echo no longer moves the bowl level (or the wellness score).
+        recent = sorted(d for t, d in state.get("recent", []) if time.monotonic() - t <= STALE_SECONDS) or [state["distance"]]
+        distance = recent[len(recent) // 2]
+        return max(0.0, min(100.0, 100 * (empty - distance) / (empty - full)))
 
     def _check_level(self, sensor_id, mode, now):
         percent = self.level(sensor_id)
@@ -514,12 +522,16 @@ class Hub:
                              f"An approach-and-stay movement was detected at the entrance ({confidence:.0%} confidence). "
                              "Access has not been granted.", "entrance")
         elif prediction == "AUTH_GESTURE":
-            self._cancel_access("Unlock gesture detected. Enter your username to receive a code.")
-            self.access.update(gesture_at=now_iso(), gesture_until=time.monotonic() + GESTURE_WINDOW)
+            # The unlock gesture opens the door straight away (no username or code step).
+            # AUTH_OK then OTP_OK puts the entrance in its "granted" state: solid green and the success tune.
+            self._cancel_access("Door unlocked by the unlock gesture.")
             self.door("AUTH_OK")
-            if self.settings.data["notifications"]["access"]:
-                self.executor.submit(self.telegram.send, "PetCare AI: unlock gesture detected at the entrance. "
-                                     "Open the app within 2 minutes to request an access code.")
+            self.door("OTP_OK")
+            self.db.query("INSERT INTO gestures VALUES (?,?,?)", (now_iso(), "ACCESS_GRANTED", round(confidence, 4)))
+            logging.info("Entrance unlocked by gesture (%.0f%% confidence)", confidence * 100)
+            self.raise_alert("unlock:" + uuid.uuid4().hex, "INFO", "Door unlocked by the unlock gesture",
+                             f"The entrance recognised the unlock gesture ({confidence:.0%} confidence) and unlocked. "
+                             "If this was not you, check the entrance.", "access")
 
     def _cancel_access(self, status):
         self.access.update(gesture_at=None, gesture_until=0.0, challenge=None, demo_code="", status=status)
@@ -566,6 +578,17 @@ class Hub:
             if not success:
                 a["challenge"] = None
 
+    def cancel_access_by_owner(self):
+        """The owner stops a pending unlock from the app: no code is accepted and the door lights reset."""
+        with self.lock:
+            if not (self.access["challenge"] or time.monotonic() < self.access["gesture_until"]):
+                return False
+            self._cancel_access("Cancelled from the app. Access was not granted.")
+            self.door("RESET")
+        self.db.query("INSERT INTO gestures VALUES (?,?,?)", (now_iso(), "ACCESS_CANCELLED", 1.0))
+        logging.info("Entrance unlock cancelled from the app")
+        return True
+
     def verify_otp(self, code):
         with self.lock:
             a, challenge = self.access, self.access["challenge"]
@@ -591,6 +614,30 @@ class Hub:
             else:
                 a["status"] = f"Wrong code · {OTP_ATTEMPTS - challenge['attempts']} attempts left."
             return False
+
+    # ---------- live routine demo (real sensors, sped-up durations) ----------
+    def live_routine(self, restart=False):
+        """What the real sensors saw since the live demo day started."""
+        today = date.today().isoformat()
+        sleep_s = self.day_totals(today)["sleep_hours"] * 3600
+        with self.lock:
+            water_id = next((k for k, m in self.sensors["mapping"].items() if m == "water"), None)
+            water_now = self.level(water_id) if water_id else None
+            if restart or self._live is None or self._live["day"] != today:
+                self._live = {"since": now_iso(), "day": today, "sleep_s": sleep_s, "started": time.monotonic(), "water_start": water_now}
+            elif self._live["water_start"] is None:
+                self._live["water_start"] = water_now      # the water sensor came online after Start
+            live = dict(self._live)
+        count = lambda sql: self.db.query(sql, (live["since"],))[0][0]
+        return {"rest_seconds": max(0.0, sleep_s - live["sleep_s"]),
+                # Visits under 3 s are sensor flicker, not a pet.
+                "rests": count("SELECT COUNT(*) FROM visits WHERE mode='sleep' AND duration>=3 AND timestamp>=?"),
+                "litter": count("SELECT COUNT(*) FROM visits WHERE mode='toilet' AND duration>=3 AND timestamp>=?"),
+                "entrance": count("SELECT COUNT(*) FROM gestures WHERE prediction IN ('PASS_BY','APPROACH_STAY','AUTH_GESTURE') AND timestamp>=?"),
+                "elapsed": round(time.monotonic() - live["started"]), "since": live["since"],
+                # Water drunk = how far the calibrated bowl level fell since Start (None without a reading).
+                "water": None if live["water_start"] is None or water_now is None else
+                         {"start": round(live["water_start"]), "now": round(water_now), "drop": max(0.0, live["water_start"] - water_now)}}
 
     # ---------- sensor layout and desktop sync ----------
     def save_layout(self, layout):
@@ -1597,6 +1644,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/settings": self.get_settings,
             "/api/login/challenge": self.get_challenge,
             "/api/security": self.get_security,
+            "/api/routine": self.get_routine,
         }
 
     def do_POST(self):
@@ -1614,6 +1662,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/alerts/clear": self.post_alerts_clear,
             "/api/access/request": lambda: (self._user(), self.hub.request_otp(self._body().get("username", "")), self._json({"ok": True})),
             "/api/access/verify": lambda: (self._user(), self._json({"ok": self.hub.verify_otp(self._body().get("code", ""))})),
+            "/api/access/cancel": lambda: (self._user(), self._json({"ok": self.hub.cancel_access_by_owner()})),
             "/api/settings/pet": self.post_pet,
             "/api/pets/save": lambda: (self._user(), self._json({"ok": True, "id": self.hub.save_pet(self._body())})),
             "/api/pets/delete": lambda: (self._user(), self.hub.delete_pet(self._body().get("id")), self._json({"ok": True})),
@@ -1629,6 +1678,9 @@ class Handler(BaseHTTPRequestHandler):
             "/api/account/password": self.post_password,
             "/api/settings/mirror": self.post_mirror,
             "/api/settings/layout": lambda: (self._user(), self.hub.save_layout(self._body().get("layout") or {}), self._json({"ok": True})),
+            "/api/routine/score": self.post_routine_score,
+            "/api/routine/live": self.post_routine_live,
+            "/api/routine/tuning": self.post_routine_tuning,
         }
 
     # ----- auth: challenge-response, the password never leaves the phone -----
@@ -1716,6 +1768,88 @@ class Handler(BaseHTTPRequestHandler):
             headers.update({"Content-Encoding": "gzip", "Vary": "Accept-Encoding"})
         self._headers(200, "application/json", len(body), headers)
         self.wfile.write(body)
+
+    # ----- routine AI (ai/routine_ai.py: learns the normal routine, scores how unusual a day is) -----
+    def _routine(self):
+        import importlib.util
+        path = ROOT / "ai" / "routine_ai.py"
+        if not path.is_file():
+            raise ApiError(404, "Routine AI is not installed (copy the ai folder next to pi_hub.py)")
+        spec = importlib.util.spec_from_file_location("routine_ai", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.MIN_STD = {**module.MIN_STD, **self.hub.settings.data.get("wellness_tuning", {})}
+        try:
+            return module, *module.evaluate()
+        except SystemExit as exc:          # the script reports bad CSV data this way
+            raise ApiError(400, str(exc))
+
+    def get_routine(self):
+        self._user()
+        _, _, result = self._routine()
+        self._json(result)
+
+    def post_routine_score(self):
+        """Score one day typed into the app, against the learned routine."""
+        self._user()
+        module, model, _ = self._routine()
+        body = self._body()
+        try:
+            x = [float(body["values"][key]) for key, _, _ in module.FEATURES]
+        except (KeyError, TypeError, ValueError):
+            raise ApiError(400, "Fill in every behaviour with a number")
+        if not all(math.isfinite(v) and 0 <= v <= 1000 for v in x):
+            raise ApiError(400, "Values must be between 0 and 1000")
+        self._json(module.describe(model, str(body.get("name") or "Your day")[:40], x))
+
+    def post_routine_tuning(self):
+        """Save how tolerant the wellness score is for each behaviour ({"tuning": {key: value}} or {"reset": true})."""
+        self._user()
+        module, _, _ = self._routine()
+        body = self._body()
+        keys = {k for k, _, _ in module.FEATURES}
+        if body.get("reset"):
+            tuning = {}
+        else:
+            tuning = body.get("tuning")
+            if not isinstance(tuning, dict) or not set(tuning) <= keys:
+                raise ApiError(400, "Unknown behaviour in the tuning")
+            if not all(finite(v, 0, 100) for v in tuning.values()):
+                raise ApiError(400, "Each tolerance must be a number from 0 to 100")
+            tuning = {k: round(float(v), 2) for k, v in tuning.items()}
+        with self.hub.settings.lock:
+            self.hub.settings.data["wellness_tuning"] = tuning
+            self.hub.settings.save()
+        logging.info("Wellness tuning saved: %s", tuning or "defaults")
+        self._json({"ok": True, "tuning": tuning})
+
+    LIVE_SPEED = 360   # live demo: 1 second at the bed counts as 6 minutes of rest
+
+    def post_routine_live(self):
+        """Score a live demo day: starts as a typical day, real sensor events since 'start' are added on top."""
+        self._user()
+        module, model, _ = self._routine()
+        body = self._body()
+        live = self.hub.live_routine(restart=body.get("action") == "start")
+        values = {key: model.mean[i] for i, (key, _, _) in enumerate(module.FEATURES)}
+        for key in ("rest_count", "litter_visits", "entrance_events"):   # counts start from a whole typical number
+            values[key] = round(values[key])
+        values["day_rest_h"] += live["rest_seconds"] * self.LIVE_SPEED / 3600
+        values["rest_count"] += live["rests"]
+        values["litter_visits"] += live["litter"]
+        values["entrance_events"] += live["entrance"]
+        if live["water"]:
+            # Until the bowl has dropped more than a usual day's drinking, water counts as usual
+            # (a full bowl at the start does not mean "drank nothing all day").
+            values["water_drunk_pct"] = max(values["water_drunk_pct"], live["water"]["drop"])
+        for key in ("food_eaten_pct", "water_drunk_pct"):     # optional manual override
+            if body.get(key) is not None:
+                if not finite(body[key], 0, 100):
+                    raise ApiError(400, "Food and water must be 0-100 %")
+                values[key] = float(body[key])
+        result = module.describe(model, "Live demo day", [round(values[k], 1) for k, _, _ in module.FEATURES])
+        result["live"] = {**live, "speed": self.LIVE_SPEED}
+        self._json(result)
 
     def get_security(self):
         self._user()
